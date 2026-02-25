@@ -190,7 +190,7 @@ export async function logoutAction() {
 
 export async function signupShiftAction(formData: FormData) {
   const user = await requireUser();
-  if (user.role !== "brigadnik") {
+  if (user.role !== "brigadnik" && user.role !== "admin") {
     redirect("/admin/schedule");
   }
   const shiftId = getString(formData, "shiftId");
@@ -205,7 +205,7 @@ export async function signupShiftAction(formData: FormData) {
 
 export async function unassignShiftAction(formData: FormData) {
   const user = await requireUser();
-  if (user.role !== "brigadnik") {
+  if (user.role !== "brigadnik" && user.role !== "admin") {
     redirect("/admin/schedule");
   }
   const shiftId = getString(formData, "shiftId");

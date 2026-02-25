@@ -19,9 +19,6 @@ export default async function LoginPage({ searchParams }: Props) {
         <div>
           <p className="eyebrow">Chlum / Employees</p>
           <h1>Přihlášení</h1>
-          <p className="subtle">
-            MVP pro plán směn, svateb a eventů. Data jsou uložena v JSON souborech.
-          </p>
         </div>
 
         {error ? <p className="alert">Neplatný e-mail nebo heslo.</p> : null}
@@ -39,15 +36,6 @@ export default async function LoginPage({ searchParams }: Props) {
             Přihlásit
           </button>
         </form>
-
-        <div className="demo-box">
-          <strong>Demo účty</strong>
-          <ul>
-            <li>`petra@chlum.local` / `brigadnik123`</li>
-            <li>`manager@chlum.local` / `manager123`</li>
-            <li>`admin@chlum.local` / `admin123`</li>
-          </ul>
-        </div>
       </div>
     </div>
   );

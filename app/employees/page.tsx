@@ -94,6 +94,7 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
     year: "numeric",
   }).format(view === "month" ? startOfMonth(anchor) : anchor);
   const calendarRedirectTo = `/employees?view=${view}&date=${anchorDate}`;
+  const canSelfAssign = user.role === "brigadnik" || user.role === "admin";
   const visibleLocationIds = [...new Set(
     days.flatMap((day) => (summaryMap.get(day)?.shifts ?? []).map((shift) => shift.locationId)),
   )].filter((id) => locationMap.has(id));
@@ -124,7 +125,7 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
             </Link>
           </div>
         </div>
-        {user.role === "brigadnik" ? (
+        {canSelfAssign ? (
           <p className="subtle tiny calendar-help">
             Klikni na den a v detailu se přihlas na směnu. Barvy níže odlišují pobočky.
           </p>
@@ -228,7 +229,7 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
                           )}
                         </div>
 
-                        {user.role === "brigadnik" && singleShiftId ? (
+                        {canSelfAssign && singleShiftId ? (
                           isMine ? (
                             <form action={unassignShiftAction} className="day-location-action">
                               <input type="hidden" name="shiftId" value={singleShiftId} />
@@ -248,7 +249,7 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
                               </button>
                             </form>
                           )
-                        ) : user.role === "brigadnik" && locationSummary && locationSummary.shiftIds.length > 1 ? (
+                        ) : canSelfAssign && locationSummary && locationSummary.shiftIds.length > 1 ? (
                           <span className="chip">Více směn</span>
                         ) : null}
                       </div>

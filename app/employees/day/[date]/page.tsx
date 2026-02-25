@@ -37,6 +37,7 @@ export default async function DayPage({ params }: Props) {
   const dayEvents = events.filter((event) => event.date === date);
   const canManageAssignments = user.role === "manager" || user.role === "admin";
   const canManageShifts = canManageAssignments;
+  const canSelfAssign = user.role === "brigadnik" || user.role === "admin";
 
   return (
     <div className="stack gap-lg">
@@ -139,7 +140,7 @@ export default async function DayPage({ params }: Props) {
 
         {details.map(({ shift, assignments, occupancy }) => {
           const myAssignment = assignments.find((a) => a.userId === user.id);
-          const canSignup = user.role === "brigadnik";
+          const canSignup = canSelfAssign;
           return (
             <article className="panel stack" key={shift.id}>
               <div className="row between wrap">
