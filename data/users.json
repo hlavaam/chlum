@@ -1,0 +1,127 @@
+[
+  {
+    "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+    "createdAt": "2026-02-20T08:00:00.000Z",
+    "updatedAt": "2026-02-20T08:00:00.000Z",
+    "name": "Anna Admin",
+    "email": "admin@chlum.local",
+    "passwordHash": "pbkdf2$100000$saltadmin1234567$e17461a411bd8266ec00b33acf9b1b1effd4631f4696472be8ef1882ec32c3c4",
+    "role": "admin",
+    "active": true,
+    "locationIds": [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222"
+    ],
+    "preferredRoles": [
+      "service"
+    ],
+    "availabilityByDate": {
+      "2026-02-28": "preferred"
+    }
+  },
+  {
+    "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+    "createdAt": "2026-02-20T08:00:00.000Z",
+    "updatedAt": "2026-02-20T08:00:00.000Z",
+    "name": "Marek Manager",
+    "email": "manager@chlum.local",
+    "passwordHash": "pbkdf2$100000$saltmanager12345$fed857978ae43a47ea1b6e6c58568bec8db2f88194be4c50356eaec2a1d75515",
+    "role": "manager",
+    "active": true,
+    "locationIds": [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222"
+    ],
+    "preferredRoles": [
+      "service",
+      "bar"
+    ],
+    "availabilityByDate": {
+      "2026-02-28": "available",
+      "2026-03-05": "available"
+    }
+  },
+  {
+    "id": "cccccccc-cccc-4ccc-8ccc-ccccccccccc3",
+    "createdAt": "2026-02-20T08:00:00.000Z",
+    "updatedAt": "2026-02-20T08:00:00.000Z",
+    "name": "Petra Nováková",
+    "email": "petra@chlum.local",
+    "passwordHash": "pbkdf2$100000$saltstaff1234567$1bdbde484389ffee44c5c97f091c4be85a2f33994d8174c662447baa000849d4",
+    "role": "brigadnik",
+    "active": true,
+    "locationIds": [
+      "11111111-1111-4111-8111-111111111111"
+    ],
+    "preferredRoles": [
+      "service"
+    ],
+    "availabilityByDate": {
+      "2026-02-24": "available",
+      "2026-02-28": "preferred"
+    }
+  },
+  {
+    "id": "dddddddd-dddd-4ddd-8ddd-ddddddddddd4",
+    "createdAt": "2026-02-20T08:00:00.000Z",
+    "updatedAt": "2026-02-20T08:00:00.000Z",
+    "name": "Jakub Dvořák",
+    "email": "jakub@chlum.local",
+    "passwordHash": "pbkdf2$100000$saltstaff1234567$1bdbde484389ffee44c5c97f091c4be85a2f33994d8174c662447baa000849d4",
+    "role": "brigadnik",
+    "active": true,
+    "locationIds": [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222"
+    ],
+    "preferredRoles": [
+      "bar"
+    ],
+    "availabilityByDate": {
+      "2026-02-24": "available",
+      "2026-02-28": "available",
+      "2026-03-05": "preferred"
+    }
+  },
+  {
+    "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5",
+    "createdAt": "2026-02-20T08:00:00.000Z",
+    "updatedAt": "2026-02-20T08:00:00.000Z",
+    "name": "Lucie Horská",
+    "email": "lucie@chlum.local",
+    "passwordHash": "pbkdf2$100000$saltstaff1234567$1bdbde484389ffee44c5c97f091c4be85a2f33994d8174c662447baa000849d4",
+    "role": "brigadnik",
+    "active": true,
+    "locationIds": [
+      "22222222-2222-4222-8222-222222222222"
+    ],
+    "preferredRoles": [
+      "service",
+      "runner"
+    ],
+    "availabilityByDate": {
+      "2026-02-28": "available",
+      "2026-03-05": "available"
+    }
+  },
+  {
+    "id": "ffffffff-ffff-4fff-8fff-fffffffffff6",
+    "createdAt": "2026-02-20T08:00:00.000Z",
+    "updatedAt": "2026-02-20T08:00:00.000Z",
+    "name": "Tomáš Kříž",
+    "email": "tomas@chlum.local",
+    "passwordHash": "pbkdf2$100000$saltstaff1234567$1bdbde484389ffee44c5c97f091c4be85a2f33994d8174c662447baa000849d4",
+    "role": "brigadnik",
+    "active": true,
+    "locationIds": [
+      "11111111-1111-4111-8111-111111111111"
+    ],
+    "preferredRoles": [
+      "kitchen"
+    ],
+    "availabilityByDate": {
+      "2026-02-24": "preferred",
+      "2026-02-28": "available"
+    }
+  }
+]

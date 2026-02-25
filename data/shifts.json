@@ -1,0 +1,15 @@
+[
+  {
+    "date": "2026-02-02",
+    "startTime": "10:00",
+    "endTime": "22:00",
+    "locationId": "11111111-1111-4111-8111-111111111111",
+    "type": "restaurant",
+    "requiredRoles": [],
+    "minimumPeople": 1,
+    "requiresApproval": true,
+    "id": "4f242215-2eb4-4320-b29c-c326e3bb2504",
+    "createdAt": "2026-02-25T11:11:28.682Z",
+    "updatedAt": "2026-02-25T11:11:28.682Z"
+  }
+]
