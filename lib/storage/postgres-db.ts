@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 
-let poolPromise: Promise<Pool> | null = null;
+let poolPromise: Promise<any> | null = null;
 let schemaPromise: Promise<void> | null = null;
 
 function shouldUseSsl(connectionString: string) {
