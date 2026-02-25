@@ -1,10 +1,7 @@
-let poolPromise: Promise<any> | null = null;
-let schemaPromise: Promise<void> | null = null;
+import { Pool } from "pg";
 
-function requirePg() {
-  const req = eval("require") as NodeRequire;
-  return req("pg") as { Pool: new (config: Record<string, unknown>) => any };
-}
+let poolPromise: Promise<Pool> | null = null;
+let schemaPromise: Promise<void> | null = null;
 
 function shouldUseSsl(connectionString: string) {
   return !/sslmode=disable/i.test(connectionString);
@@ -20,7 +17,6 @@ async function createPool() {
     throw new Error("DATABASE_URL is not set");
   }
 
-  const { Pool } = requirePg();
   const shouldInjectSsl = shouldUseSsl(connectionString) && !hasExplicitSslConfigInUrl(connectionString);
   return new Pool({
     connectionString,
