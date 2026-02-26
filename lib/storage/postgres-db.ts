@@ -21,6 +21,10 @@ async function createPool() {
   return new Pool({
     connectionString,
     ssl: shouldInjectSsl ? { rejectUnauthorized: false } : undefined,
+    max: 5,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+    keepAlive: true
   });
 }
 
