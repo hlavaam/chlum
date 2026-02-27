@@ -86,7 +86,7 @@ ul {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin: 1rem 0;
+  margin: 1.35rem 0 1.05rem;
 }
 
 .mobile-nav {
@@ -110,6 +110,7 @@ ul {
 .content {
   display: block;
   padding-bottom: 0.5rem;
+  margin-top: 0.2rem;
 }
 
 .panel {
@@ -841,6 +842,7 @@ details > summary {
   }
 
   .content {
+    margin-top: 0.85rem;
     padding-bottom: 5.6rem;
   }
 
