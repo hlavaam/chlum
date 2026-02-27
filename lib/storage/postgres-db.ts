@@ -7,7 +7,6 @@ type QueryRow<T extends BaseRecord> = {
 };
 
 let poolPromise: Promise<any> | null = null;
-let schemaPromise: Promise<void> | null = null;
 
 function getConnectionString() {
   return process.env.DATABASE_NEON_DATABASE_URL || process.env.DATABASE_URL;
@@ -64,63 +63,12 @@ export async function getPostgresPool() {
   return poolPromise;
 }
 
-export async function ensurePostgresStorageSchema() {
-  if (!schemaPromise) {
-    schemaPromise = (async () => {
-      const trace = startPerfTrace("postgres.ensure_schema");
-      const pool = await getPostgresPool();
-      trace.step("get_pool");
-      await pool.query(`
-        create table if not exists app_records (
-          resource text not null,
-          id text not null,
-          payload jsonb not null,
-          primary key (resource, id)
-        )
-      `);
-      trace.step("create_table");
-      await pool.query(`
-        create index if not exists app_records_resource_idx
-        on app_records (resource)
-      `);
-      trace.step("create_resource_index");
-      await pool.query(`
-        create index if not exists app_records_shifts_date_idx
-        on app_records ((payload ->> 'date'))
-        where resource = 'shifts'
-      `);
-      trace.step("create_shifts_date_index");
-      await pool.query(`
-        create index if not exists app_records_assignments_shift_idx
-        on app_records ((payload ->> 'shiftId'))
-        where resource = 'assignments'
-      `);
-      trace.step("create_assignments_shift_index");
-      await pool.query(`
-        create index if not exists app_records_assignments_user_idx
-        on app_records ((payload ->> 'userId'))
-        where resource = 'assignments'
-      `);
-      trace.step("create_assignments_user_index");
-      await pool.query(`
-        create index if not exists app_records_assignments_status_idx
-        on app_records ((payload ->> 'status'))
-        where resource = 'assignments'
-      `);
-      trace.step("create_assignments_status_index");
-      trace.end();
-    })();
-  }
-  return schemaPromise;
-}
-
 export async function loadPostgresResourceByField<T extends BaseRecord>(
   resource: string,
   field: string,
   value: string,
 ): Promise<T[]> {
   assertSafeJsonField(field);
-  await ensurePostgresStorageSchema();
   const pool = await getPostgresPool();
   const result = await pool.query(
     `select payload from app_records where resource = $1 and payload ->> '${field}' = $2`,
@@ -136,7 +84,6 @@ export async function loadPostgresResourceByFieldIn<T extends BaseRecord>(
 ): Promise<T[]> {
   assertSafeJsonField(field);
   if (values.length === 0) return [];
-  await ensurePostgresStorageSchema();
   const pool = await getPostgresPool();
   const result = await pool.query(
     `select payload from app_records where resource = $1 and payload ->> '${field}' = any($2::text[])`,
@@ -152,7 +99,6 @@ export async function loadPostgresResourceByFieldRange<T extends BaseRecord>(
   end: string,
 ): Promise<T[]> {
   assertSafeJsonField(field);
-  await ensurePostgresStorageSchema();
   const pool = await getPostgresPool();
   const result = await pool.query(
     `
@@ -173,7 +119,6 @@ export async function countPostgresResourceByField(
   value: string,
 ): Promise<number> {
   assertSafeJsonField(field);
-  await ensurePostgresStorageSchema();
   const pool = await getPostgresPool();
   const result = await pool.query(
     `select count(*)::int as count from app_records where resource = $1 and payload ->> '${field}' = $2`,

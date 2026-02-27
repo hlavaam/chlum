@@ -5,7 +5,7 @@ import { startPerfTrace } from "@/lib/perf";
 import { nowIso } from "@/lib/utils";
 import type { Repository } from "@/lib/storage/json-repository";
 import { readTableFile } from "@/lib/storage/file-db";
-import { ensurePostgresStorageSchema, getPostgresPool } from "@/lib/storage/postgres-db";
+import { getPostgresPool } from "@/lib/storage/postgres-db";
 
 type QueryRow<T extends BaseRecord> = {
   payload: T;
@@ -30,8 +30,6 @@ export class PostgresRepository<T extends BaseRecord> implements Repository<T> {
       params: values.length,
     });
     try {
-      await ensurePostgresStorageSchema();
-      trace.step("ensure_schema");
       const pool = await getPostgresPool();
       trace.step("get_pool");
       const result = await pool.query(sql, values);
