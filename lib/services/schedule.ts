@@ -44,11 +44,28 @@ class ScheduleService {
     try {
       const [shifts, allUsers] = await Promise.all([shiftsService.forDate(date), usersService.loadAll()]);
       trace.step("load_shifts_users", { shifts: shifts.length, users: allUsers.length });
+      const shiftIds = shifts.map((shift) => shift.id);
+      const allAssignments = await assignmentsService.forShiftIds(shiftIds);
+      trace.step("load_assignments_for_shifts", { assignments: allAssignments.length });
       const userMap = new Map(allUsers.map((u) => [u.id, u]));
+      const assignmentByShift = new Map<string, AssignmentRecord[]>();
+      const occupancyByShift = new Map<string, { confirmed: number; pending: number; total: number }>();
+      for (const assignment of allAssignments) {
+        const list = assignmentByShift.get(assignment.shiftId) ?? [];
+        list.push(assignment);
+        assignmentByShift.set(assignment.shiftId, list);
+
+        const stats = occupancyByShift.get(assignment.shiftId) ?? { confirmed: 0, pending: 0, total: 0 };
+        stats.total += 1;
+        if (assignment.status === "confirmed") stats.confirmed += 1;
+        if (assignment.status === "pending") stats.pending += 1;
+        occupancyByShift.set(assignment.shiftId, stats);
+      }
+
       const result: DayShiftView[] = [];
       for (const shift of shifts) {
-        const assignments = await assignmentsService.forShift(shift.id);
-        const occupancy = await shiftsService.occupancy(shift.id);
+        const assignments = assignmentByShift.get(shift.id) ?? [];
+        const occupancy = occupancyByShift.get(shift.id) ?? { confirmed: 0, pending: 0, total: 0 };
         result.push({
           shift,
           assignments: assignments.map((a) => ({
@@ -76,21 +93,23 @@ class ScheduleService {
   async getDaySummaries(startDate: string, endDate: string): Promise<Map<string, DaySummary>> {
     const trace = startPerfTrace("schedule.get_day_summaries", { startDate, endDate });
     const shifts = await shiftsService.forDateRange(startDate, endDate);
-    const assignments = await assignmentsService.loadAll();
+    const shiftIds = shifts.map((shift) => shift.id);
+    const assignments = await assignmentsService.forShiftIds(shiftIds);
     trace.step("load_shifts_assignments", { shifts: shifts.length, assignments: assignments.length });
-    const assignmentByShift = new Map<string, AssignmentRecord[]>();
-    for (const a of assignments) {
-      const list = assignmentByShift.get(a.shiftId) ?? [];
-      list.push(a);
-      assignmentByShift.set(a.shiftId, list);
+    const occupancyByShift = new Map<string, { confirmed: number; pending: number }>();
+    for (const assignment of assignments) {
+      const stats = occupancyByShift.get(assignment.shiftId) ?? { confirmed: 0, pending: 0 };
+      if (assignment.status === "confirmed") stats.confirmed += 1;
+      if (assignment.status === "pending") stats.pending += 1;
+      occupancyByShift.set(assignment.shiftId, stats);
     }
-    trace.step("group_assignments", { unique_shifts: assignmentByShift.size });
+    trace.step("group_assignments", { unique_shifts: occupancyByShift.size });
 
     const summaryByDate = new Map<string, DaySummary>();
     for (const shift of shifts) {
-      const list = assignmentByShift.get(shift.id) ?? [];
-      const confirmed = list.filter((a) => a.status === "confirmed").length;
-      const pending = list.filter((a) => a.status === "pending").length;
+      const stats = occupancyByShift.get(shift.id);
+      const confirmed = stats?.confirmed ?? 0;
+      const pending = stats?.pending ?? 0;
 
       const existing = summaryByDate.get(shift.date);
       const shiftType = shift.type;
@@ -130,11 +149,11 @@ class ScheduleService {
 
   async myShifts(userId: string) {
     const trace = startPerfTrace("schedule.my_shifts", { user_id: userId });
-    const [assignments, shifts, locations] = await Promise.all([
+    const [assignments, locations] = await Promise.all([
       assignmentsService.forUser(userId),
-      shiftsService.loadAll(),
       locationsService.loadAll(),
     ]);
+    const shifts = await shiftsService.forIds([...new Set(assignments.map((assignment) => assignment.shiftId))]);
     trace.step("load_assignments_shifts_locations", {
       assignments: assignments.length,
       shifts: shifts.length,
@@ -174,7 +193,7 @@ class ScheduleService {
     const [summaryMap, locations, events] = await Promise.all([
       this.getDaySummaries(dateRange.startDate, dateRange.endDate),
       locationsService.loadAll(),
-      eventsService.loadAll(),
+      eventsService.forDateRange(dateRange.startDate, dateRange.endDate),
     ]);
     trace.step("load_context", {
       days: summaryMap.size,
@@ -184,9 +203,7 @@ class ScheduleService {
     const result = {
       summaryMap,
       locations,
-      events: events.filter(
-        (event) => event.date >= dateRange.startDate && event.date <= dateRange.endDate,
-      ),
+      events,
     };
     trace.end({ filtered_events: result.events.length });
     return result;

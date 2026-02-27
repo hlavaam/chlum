@@ -1,5 +1,11 @@
 import { BaseCrudService } from "@/lib/services/base-crud";
 import { assignmentsService } from "@/lib/services/assignments";
+import {
+  hasDatabaseUrl,
+  loadPostgresResourceByField,
+  loadPostgresResourceByFieldRange,
+  loadPostgresResourceByIds,
+} from "@/lib/storage/postgres-db";
 import { assignmentsRepository, shiftsRepository } from "@/lib/storage/repositories";
 import type {
   AssignmentRecord,
@@ -11,6 +17,10 @@ import type {
 
 class ShiftsService extends BaseCrudService<ShiftRecord> {
   async forDate(date: string) {
+    if (hasDatabaseUrl()) {
+      const rows = await loadPostgresResourceByField<ShiftRecord>("shifts", "date", date);
+      return rows.sort((a, b) => `${a.startTime}${a.endTime}`.localeCompare(`${b.startTime}${b.endTime}`));
+    }
     const all = await this.loadAll();
     return all
       .filter((shift) => shift.date === date)
@@ -18,12 +28,28 @@ class ShiftsService extends BaseCrudService<ShiftRecord> {
   }
 
   async forDateRange(startDate: string, endDate: string) {
+    if (hasDatabaseUrl()) {
+      const rows = await loadPostgresResourceByFieldRange<ShiftRecord>("shifts", "date", startDate, endDate);
+      return rows.sort((a, b) =>
+        `${a.date}${a.startTime}${a.endTime}`.localeCompare(`${b.date}${b.startTime}${b.endTime}`),
+      );
+    }
     const all = await this.loadAll();
     return all
       .filter((shift) => shift.date >= startDate && shift.date <= endDate)
       .sort((a, b) =>
         `${a.date}${a.startTime}${a.endTime}`.localeCompare(`${b.date}${b.startTime}${b.endTime}`),
       );
+  }
+
+  async forIds(ids: string[]) {
+    if (ids.length === 0) return [];
+    if (hasDatabaseUrl()) {
+      return loadPostgresResourceByIds<ShiftRecord>("shifts", ids);
+    }
+    const idSet = new Set(ids);
+    const all = await this.loadAll();
+    return all.filter((shift) => idSet.has(shift.id));
   }
 
   async signup(

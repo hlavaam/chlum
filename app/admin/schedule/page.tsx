@@ -35,13 +35,15 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
   const date = readString(params, "date") || toDateKey(new Date());
   const tab = readString(params, "tab") === "admin" ? "admin" : "calendar";
 
-  const [dayDetails, locations, users, shifts, assignments] = await Promise.all([
-    scheduleService.getDayDetails(date),
-    locationsService.loadAll(),
-    usersService.loadAll(),
-    shiftsService.loadAll(),
-    assignmentsService.loadAll(),
-  ]);
+  const locations = await locationsService.loadAll();
+  const [dayDetails, users, shifts, assignments] = tab === "admin"
+    ? await Promise.all([
+        scheduleService.getDayDetails(date),
+        usersService.loadAll(),
+        shiftsService.loadAll(),
+        assignmentsService.loadAll(),
+      ])
+    : [[], [], [], []];
   const locationMap = new Map(locations.map((l) => [l.id, l]));
   const pendingAssignments = assignments.filter((a) => a.status === "pending");
 

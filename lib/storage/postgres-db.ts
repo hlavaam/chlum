@@ -92,6 +92,19 @@ export async function loadPostgresResourceByFieldIn<T extends BaseRecord>(
   return (result.rows as QueryRow<T>[]).map((row) => row.payload);
 }
 
+export async function loadPostgresResourceByIds<T extends BaseRecord>(
+  resource: string,
+  ids: string[],
+): Promise<T[]> {
+  if (ids.length === 0) return [];
+  const pool = await getPostgresPool();
+  const result = await pool.query(
+    "select payload from app_records where resource = $1 and id = any($2::text[])",
+    [resource, ids],
+  );
+  return (result.rows as QueryRow<T>[]).map((row) => row.payload);
+}
+
 export async function loadPostgresResourceByFieldRange<T extends BaseRecord>(
   resource: string,
   field: string,

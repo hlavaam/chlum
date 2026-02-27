@@ -31,10 +31,10 @@ export default async function DayPage({ params }: Props) {
   const [details, locations, events] = await Promise.all([
     scheduleService.getDayDetails(date),
     locationsService.loadAll(),
-    eventsService.loadAll(),
+    eventsService.forDate(date),
   ]);
   const locationMap = new Map(locations.map((l) => [l.id, l]));
-  const dayEvents = events.filter((event) => event.date === date);
+  const dayEvents = events;
   const canManageAssignments = user.role === "manager" || user.role === "admin";
   const canManageShifts = canManageAssignments;
   const canSelfAssign = user.role === "brigadnik" || user.role === "admin";
