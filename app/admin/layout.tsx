@@ -14,7 +14,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <AppShell
       title="Admin / Plánování"
-      subtitle="Správa směn, eventů a obsazení"
+      subtitle="Měsíční a týdenní plán restaurace, svateb a eventů"
       user={user}
       nav={nav}
     >

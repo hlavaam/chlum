@@ -5,7 +5,9 @@ export default async function EmployeesLayout({ children }: { children: React.Re
   const user = await requireUser();
   const nav = [
     { href: "/employees", label: "Kalendář" },
-    ...(user.role === "brigadnik" ? [{ href: "/employees/my", label: "Moje směny" }] : []),
+    ...(user.role === "brigadnik" || user.role === "admin"
+      ? [{ href: "/employees/my", label: "Moje směny" }]
+      : []),
     { href: `/admin/schedule`, label: "Admin" },
   ].filter((item) => (item.href.startsWith("/admin") ? ["manager", "admin"].includes(user.role) : true));
 

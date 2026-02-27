@@ -162,6 +162,9 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
           const hasWedding =
             (summary?.shifts.some((shift) => shift.type === "wedding") ?? false) ||
             dayEvents.some((event) => event.type === "wedding");
+          const hasEvent =
+            (summary?.shifts.some((shift) => shift.type === "event") ?? false) ||
+            dayEvents.some((event) => event.type === "event");
           const eventsByLocation = new Map<string, EventType[]>();
           for (const event of dayEvents) {
             const list = eventsByLocation.get(event.locationId) ?? [];
@@ -177,7 +180,7 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
           return (
             <article
               key={day}
-              className={`day-card ${hasMyShift ? "mine" : ""} ${hasWedding ? "wedding-day" : ""}`.trim()}
+              className={`day-card ${hasMyShift ? "mine" : ""} ${hasWedding ? "wedding-day" : ""} ${hasEvent ? "event-day" : ""}`.trim()}
             >
               <div className="row between">
                 <strong>{new Date(`${day}T00:00:00`).getDate()}.</strong>

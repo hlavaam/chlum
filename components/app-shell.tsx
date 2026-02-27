@@ -22,7 +22,7 @@ interface AppShellProps {
   children: React.ReactNode;
 }
 
-export function AppShell({ title, subtitle, user, nav, children }: AppShellProps) {
+export function AppShell({ title: _title, subtitle, user, nav, children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -37,8 +37,7 @@ export function AppShell({ title, subtitle, user, nav, children }: AppShellProps
       <header className="topbar">
         <div>
           <p className="eyebrow">Správa brigádníků</p>
-          <h1>{title}</h1>
-          {subtitle ? <p className="subtle">{subtitle}</p> : null}
+          <p className="topbar-description">{subtitle ?? "Měsíční a týdenní plán restaurace, svateb a eventů"}</p>
         </div>
         <div className="topbar-actions">
           <div className="user-chip">

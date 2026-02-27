@@ -68,10 +68,11 @@ ul {
   backdrop-filter: blur(8px);
 }
 
-.topbar h1 {
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 1.3rem;
-  line-height: 1.15;
+.topbar-description {
+  margin-top: 0.2rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.3;
 }
 
 .topbar-actions {
@@ -293,10 +294,12 @@ ul {
   box-shadow: inset 0 0 0 1px rgba(179, 52, 52, 0.2), var(--shadow);
 }
 
-.day-card.wedding-day {
+.day-card.wedding-day,
+.day-card.event-day {
   background:
-    linear-gradient(180deg, rgba(228, 246, 231, 0.92) 0%, rgba(255, 255, 255, 0.82) 100%);
-  border-color: rgba(79, 143, 87, 0.22);
+    linear-gradient(180deg, rgba(255, 248, 222, 0.96) 0%, rgba(255, 255, 255, 0.84) 100%);
+  border-color: rgba(199, 152, 37, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(206, 168, 72, 0.18), var(--shadow);
 }
 
 .badge {
@@ -561,6 +564,11 @@ label {
   background: rgba(255, 255, 255, 0.65);
 }
 
+.my-shift-row {
+  background: rgba(192, 229, 164, 0.22);
+  border-color: rgba(106, 155, 77, 0.22);
+}
+
 .checkbox-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -779,7 +787,7 @@ details > summary {
   }
 
   .calendar-grid.month {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 0.6rem;
   }
 
@@ -844,12 +852,8 @@ details > summary {
 }
 
 @media (max-width: 420px) {
-  .calendar-grid.month {
-    grid-template-columns: 1fr;
-  }
-
-  .topbar h1 {
-    font-size: 1.35rem;
+  .topbar-description {
+    font-size: 0.86rem;
   }
 
   .button {
