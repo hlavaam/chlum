@@ -4,11 +4,11 @@ import { formatTimeRange } from "@/lib/utils";
 
 export default async function MyPage() {
   const user = await requireUser();
-  if (user.role !== "brigadnik") {
+  if (user.role === "manager") {
     return (
       <div className="panel stack">
         <h2>Moje směny</h2>
-        <p className="subtle">Manažer/Admin zde směny neřeší. Použij záložku Admin pro vypisování provozu.</p>
+        <p className="subtle">Manažer zde osobní směny neřeší. Použij admin plánování.</p>
       </div>
     );
   }
@@ -18,7 +18,7 @@ export default async function MyPage() {
     <div className="stack gap-lg">
       <section className="panel stack">
         <h2>Moje směny</h2>
-        {myShifts.length === 0 ? <p className="subtle">Zatím nejsi přihlášen/a na žádný den.</p> : null}
+        {myShifts.length === 0 ? <p className="subtle">Zatím nejsi přihlášen/a na žádnou směnu.</p> : null}
         {myShifts.map((item) => (
           <div className="list-row my-shift-row" key={item.assignment.id}>
             <div>

@@ -200,7 +200,6 @@ export async function signupShiftAction(formData: FormData) {
   revalidatePath("/employees");
   revalidatePath(`/employees/day/${date}`);
   revalidatePath("/employees/my");
-  redirectBack(formData, `/employees/day/${date}`);
 }
 
 export async function unassignShiftAction(formData: FormData) {
@@ -214,7 +213,6 @@ export async function unassignShiftAction(formData: FormData) {
   revalidatePath("/employees");
   revalidatePath(`/employees/day/${date}`);
   revalidatePath("/employees/my");
-  redirectBack(formData, `/employees/day/${date}`);
 }
 
 export async function updateMyPreferencesAction(formData: FormData) {

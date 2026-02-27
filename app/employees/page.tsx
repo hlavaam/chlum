@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { signupShiftAction, unassignShiftAction } from "@/lib/actions";
+import { ShiftAssignmentButton } from "@/components/shift-assignment-button";
 import { requireUser } from "@/lib/auth/rbac";
 import { shiftTypeLabels } from "@/lib/constants";
 import { scheduleService } from "@/lib/services/schedule";
@@ -93,7 +93,6 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
     month: "long",
     year: "numeric",
   }).format(view === "month" ? startOfMonth(anchor) : anchor);
-  const calendarRedirectTo = `/employees?view=${view}&date=${anchorDate}`;
   const canSelfAssign = user.role === "brigadnik" || user.role === "admin";
   const visibleLocationIds = [...new Set(
     days.flatMap((day) => (summaryMap.get(day)?.shifts ?? []).map((shift) => shift.locationId)),
@@ -232,23 +231,25 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
 
                         {canSelfAssign && singleShiftId ? (
                           isMine ? (
-                            <form action={unassignShiftAction} className="day-location-action">
-                              <input type="hidden" name="shiftId" value={singleShiftId} />
-                              <input type="hidden" name="date" value={day} />
-                              <input type="hidden" name="redirectTo" value={calendarRedirectTo} />
-                              <button className="chip chip-button quick-action remove" type="submit">
+                            <div className="day-location-action">
+                              <ShiftAssignmentButton
+                                shiftId={singleShiftId}
+                                action="unassign"
+                                className="chip chip-button quick-action remove"
+                              >
                                 Odhlásit
-                              </button>
-                            </form>
+                              </ShiftAssignmentButton>
+                            </div>
                           ) : (
-                            <form action={signupShiftAction} className="day-location-action">
-                              <input type="hidden" name="shiftId" value={singleShiftId} />
-                              <input type="hidden" name="date" value={day} />
-                              <input type="hidden" name="redirectTo" value={calendarRedirectTo} />
-                              <button className="chip chip-button quick-action join" type="submit">
+                            <div className="day-location-action">
+                              <ShiftAssignmentButton
+                                shiftId={singleShiftId}
+                                action="signup"
+                                className="chip chip-button quick-action join"
+                              >
                                 Přihlásit
-                              </button>
-                            </form>
+                              </ShiftAssignmentButton>
+                            </div>
                           )
                         ) : canSelfAssign && locationSummary && locationSummary.shiftIds.length > 1 ? (
                           <span className="chip">Více směn</span>

@@ -3,14 +3,13 @@ import { notFound } from "next/navigation";
 
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FlexibleEndTimeFields } from "@/components/flexible-end-time-fields";
+import { ShiftAssignmentButton } from "@/components/shift-assignment-button";
 import { ShiftTypeBadge } from "@/components/ui";
 import {
   createShiftAction,
   deleteShiftAction,
   removeAssignmentAction,
-  signupShiftAction,
   updateShiftAction,
-  unassignShiftAction,
 } from "@/lib/actions";
 import { requireUser } from "@/lib/auth/rbac";
 import { SHIFT_TYPES, shiftTypeLabels } from "@/lib/constants";
@@ -167,23 +166,15 @@ export default async function DayPage({ params }: Props) {
               <div className="row gap-sm wrap">
                 {canSignup ? (
                   myAssignment ? (
-                    <form action={unassignShiftAction}>
-                      <input type="hidden" name="shiftId" value={shift.id} />
-                      <input type="hidden" name="date" value={date} />
-                      <input type="hidden" name="redirectTo" value={`/employees/day/${date}`} />
-                      <button className="button ghost" type="submit">
+                    <ShiftAssignmentButton shiftId={shift.id} action="unassign" className="button ghost">
                         Odhlásit se
-                      </button>
-                    </form>
+                    </ShiftAssignmentButton>
                   ) : (
-                    <form action={signupShiftAction} className="row gap-sm wrap">
-                      <input type="hidden" name="shiftId" value={shift.id} />
-                      <input type="hidden" name="date" value={date} />
-                      <input type="hidden" name="redirectTo" value={`/employees/day/${date}`} />
-                      <button className="button" type="submit">
+                    <div className="row gap-sm wrap">
+                      <ShiftAssignmentButton shiftId={shift.id} action="signup" className="button">
                         Přihlásit se
-                      </button>
-                    </form>
+                      </ShiftAssignmentButton>
+                    </div>
                   )
                 ) : null}
 
