@@ -106,23 +106,34 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
             <p className="eyebrow">Přehled provozu</p>
             <h2>{monthLabel}</h2>
           </div>
-          <div className="row gap-sm">
-            <Link className="button ghost" href={`/employees?view=${view}&date=${prevAnchor}`} prefetch={false}>
-              Předchozí
-            </Link>
-            <Link className="button ghost" href={`/employees?view=${view}&date=${toDateKey(new Date())}`} prefetch={false}>
-              Dnes
-            </Link>
-            <Link className="button ghost" href={`/employees?view=${view}&date=${nextAnchor}`} prefetch={false}>
-              Další
-            </Link>
-            <Link
-              className="button"
-              href={`/employees?view=${view === "month" ? "week" : "month"}&date=${anchorDate}`}
-              prefetch={false}
-            >
-              {view === "month" ? "Týdenní pohled" : "Měsíční pohled"}
-            </Link>
+          <div className="calendar-controls">
+            <div className="row gap-sm calendar-nav-row">
+              <Link className="button ghost" href={`/employees?view=${view}&date=${prevAnchor}`} prefetch={false}>
+                Předchozí
+              </Link>
+              <Link className="button ghost" href={`/employees?view=${view}&date=${toDateKey(new Date())}`} prefetch={false}>
+                Dnes
+              </Link>
+              <Link className="button ghost" href={`/employees?view=${view}&date=${nextAnchor}`} prefetch={false}>
+                Další
+              </Link>
+            </div>
+            <div className="view-slider" role="tablist" aria-label="Přepnutí zobrazení kalendáře">
+              <Link
+                className={`view-slide ${view === "week" ? "active" : ""}`}
+                href={`/employees?view=week&date=${anchorDate}`}
+                prefetch={false}
+              >
+                Týdenní přehled
+              </Link>
+              <Link
+                className={`view-slide ${view === "month" ? "active" : ""}`}
+                href={`/employees?view=month&date=${anchorDate}`}
+                prefetch={false}
+              >
+                Měsíční přehled
+              </Link>
+            </div>
           </div>
         </div>
         {canSelfAssign ? (
