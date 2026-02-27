@@ -1,6 +1,7 @@
 import { assignmentsService } from "@/lib/services/assignments";
 import { eventsService } from "@/lib/services/events";
 import { locationsService } from "@/lib/services/locations";
+import { startPerfTrace } from "@/lib/perf";
 import { shiftsService } from "@/lib/services/shifts";
 import { usersService } from "@/lib/services/users";
 import type { AssignmentRecord, ShiftRecord } from "@/types/models";
@@ -39,34 +40,51 @@ export interface DaySummary {
 
 class ScheduleService {
   async getDayDetails(date: string): Promise<DayShiftView[]> {
-    const [shifts, allUsers] = await Promise.all([shiftsService.forDate(date), usersService.loadAll()]);
-    const userMap = new Map(allUsers.map((u) => [u.id, u]));
-    const result: DayShiftView[] = [];
-    for (const shift of shifts) {
-      const assignments = await assignmentsService.forShift(shift.id);
-      const occupancy = await shiftsService.occupancy(shift.id);
-      result.push({
-        shift,
-        assignments: assignments.map((a) => ({
-          ...a,
-          userName: userMap.get(a.userId)?.name,
-          userRole: userMap.get(a.userId)?.role,
-        })),
-        occupancy,
-      });
+    const trace = startPerfTrace("schedule.get_day_details", { date });
+    try {
+      const [shifts, allUsers] = await Promise.all([shiftsService.forDate(date), usersService.loadAll()]);
+      trace.step("load_shifts_users", { shifts: shifts.length, users: allUsers.length });
+      const userMap = new Map(allUsers.map((u) => [u.id, u]));
+      const result: DayShiftView[] = [];
+      for (const shift of shifts) {
+        const assignments = await assignmentsService.forShift(shift.id);
+        const occupancy = await shiftsService.occupancy(shift.id);
+        result.push({
+          shift,
+          assignments: assignments.map((a) => ({
+            ...a,
+            userName: userMap.get(a.userId)?.name,
+            userRole: userMap.get(a.userId)?.role,
+          })),
+          occupancy,
+        });
+        trace.step("shift_detail", {
+          shift_id: shift.id,
+          assignments: assignments.length,
+          confirmed: occupancy.confirmed,
+          pending: occupancy.pending,
+        });
+      }
+      trace.end({ rows: result.length });
+      return result;
+    } catch (error) {
+      trace.fail(error);
+      throw error;
     }
-    return result;
   }
 
   async getDaySummaries(startDate: string, endDate: string): Promise<Map<string, DaySummary>> {
+    const trace = startPerfTrace("schedule.get_day_summaries", { startDate, endDate });
     const shifts = await shiftsService.forDateRange(startDate, endDate);
     const assignments = await assignmentsService.loadAll();
+    trace.step("load_shifts_assignments", { shifts: shifts.length, assignments: assignments.length });
     const assignmentByShift = new Map<string, AssignmentRecord[]>();
     for (const a of assignments) {
       const list = assignmentByShift.get(a.shiftId) ?? [];
       list.push(a);
       assignmentByShift.set(a.shiftId, list);
     }
+    trace.step("group_assignments", { unique_shifts: assignmentByShift.size });
 
     const summaryByDate = new Map<string, DaySummary>();
     for (const shift of shifts) {
@@ -106,18 +124,25 @@ class ScheduleService {
         locationSummaries: [...locationMap.values()].sort((a, b) => a.locationId.localeCompare(b.locationId)),
       });
     }
+    trace.end({ days: summaryByDate.size });
     return summaryByDate;
   }
 
   async myShifts(userId: string) {
+    const trace = startPerfTrace("schedule.my_shifts", { user_id: userId });
     const [assignments, shifts, locations] = await Promise.all([
       assignmentsService.forUser(userId),
       shiftsService.loadAll(),
       locationsService.loadAll(),
     ]);
+    trace.step("load_assignments_shifts_locations", {
+      assignments: assignments.length,
+      shifts: shifts.length,
+      locations: locations.length,
+    });
     const shiftMap = new Map(shifts.map((s) => [s.id, s]));
     const locationMap = new Map(locations.map((l) => [l.id, l]));
-    return assignments
+    const result = assignments
       .map((assignment) => {
         const shift = shiftMap.get(assignment.shiftId);
         if (!shift) return null;
@@ -137,21 +162,34 @@ class ScheduleService {
         } => item !== null,
       )
       .sort((a, b) => `${a.shift.date}${a.shift.startTime}`.localeCompare(`${b.shift.date}${b.shift.startTime}`));
+    trace.end({ rows: result.length });
+    return result;
   }
 
   async dashboardContext(dateRange: { startDate: string; endDate: string }) {
+    const trace = startPerfTrace("schedule.dashboard_context", {
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+    });
     const [summaryMap, locations, events] = await Promise.all([
       this.getDaySummaries(dateRange.startDate, dateRange.endDate),
       locationsService.loadAll(),
       eventsService.loadAll(),
     ]);
-    return {
+    trace.step("load_context", {
+      days: summaryMap.size,
+      locations: locations.length,
+      events: events.length,
+    });
+    const result = {
       summaryMap,
       locations,
       events: events.filter(
         (event) => event.date >= dateRange.startDate && event.date <= dateRange.endDate,
       ),
     };
+    trace.end({ filtered_events: result.events.length });
+    return result;
   }
 }
 

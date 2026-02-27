@@ -55,6 +55,7 @@ export function AppShell({ title, subtitle, user, nav, children }: AppShellProps
           <Link
             key={item.href}
             href={item.href}
+            prefetch={false}
             className={cx("tab", pathname === item.href && "active")}
           >
             {item.label}
@@ -69,6 +70,7 @@ export function AppShell({ title, subtitle, user, nav, children }: AppShellProps
           <Link
             key={`mobile-${item.href}`}
             href={item.href}
+            prefetch={false}
             className={cx("mobile-nav-link", pathname === item.href && "active")}
           >
             <span>{item.label}</span>

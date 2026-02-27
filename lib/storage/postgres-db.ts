@@ -1,5 +1,6 @@
 import { Pool } from "pg";
 import type { BaseRecord } from "@/types/models";
+import { startPerfTrace } from "@/lib/perf";
 
 type QueryRow<T extends BaseRecord> = {
   payload: T;
@@ -21,13 +22,15 @@ function hasExplicitSslConfigInUrl(connectionString: string) {
 }
 
 async function createPool() {
+  const trace = startPerfTrace("postgres.create_pool");
   const connectionString = getConnectionString();
   if (!connectionString) {
+    trace.end({ result: "missing_connection_string" });
     throw new Error("DATABASE_NEON_DATABASE_URL or DATABASE_URL must be set");
   }
 
   const shouldInjectSsl = shouldUseSsl(connectionString) && !hasExplicitSslConfigInUrl(connectionString);
-  return new Pool({
+  const pool = new Pool({
     connectionString,
     ssl: shouldInjectSsl ? { rejectUnauthorized: false } : undefined,
     max: Number(process.env.PG_POOL_MAX ?? 5),
@@ -35,6 +38,13 @@ async function createPool() {
     connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS ?? 5_000),
     keepAlive: true,
   });
+  trace.end({
+    ssl_injected: shouldInjectSsl,
+    max: Number(process.env.PG_POOL_MAX ?? 5),
+    idle_timeout_ms: Number(process.env.PG_IDLE_TIMEOUT_MS ?? 30_000),
+    connection_timeout_ms: Number(process.env.PG_CONNECTION_TIMEOUT_MS ?? 5_000),
+  });
+  return pool;
 }
 
 function assertSafeJsonField(field: string) {
@@ -57,7 +67,9 @@ export async function getPostgresPool() {
 export async function ensurePostgresStorageSchema() {
   if (!schemaPromise) {
     schemaPromise = (async () => {
+      const trace = startPerfTrace("postgres.ensure_schema");
       const pool = await getPostgresPool();
+      trace.step("get_pool");
       await pool.query(`
         create table if not exists app_records (
           resource text not null,
@@ -66,30 +78,37 @@ export async function ensurePostgresStorageSchema() {
           primary key (resource, id)
         )
       `);
+      trace.step("create_table");
       await pool.query(`
         create index if not exists app_records_resource_idx
         on app_records (resource)
       `);
+      trace.step("create_resource_index");
       await pool.query(`
         create index if not exists app_records_shifts_date_idx
         on app_records ((payload ->> 'date'))
         where resource = 'shifts'
       `);
+      trace.step("create_shifts_date_index");
       await pool.query(`
         create index if not exists app_records_assignments_shift_idx
         on app_records ((payload ->> 'shiftId'))
         where resource = 'assignments'
       `);
+      trace.step("create_assignments_shift_index");
       await pool.query(`
         create index if not exists app_records_assignments_user_idx
         on app_records ((payload ->> 'userId'))
         where resource = 'assignments'
       `);
+      trace.step("create_assignments_user_index");
       await pool.query(`
         create index if not exists app_records_assignments_status_idx
         on app_records ((payload ->> 'status'))
         where resource = 'assignments'
       `);
+      trace.step("create_assignments_status_index");
+      trace.end();
     })();
   }
   return schemaPromise;

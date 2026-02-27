@@ -108,18 +108,19 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
             <h2>{monthLabel}</h2>
           </div>
           <div className="row gap-sm">
-            <Link className="button ghost" href={`/employees?view=${view}&date=${prevAnchor}`}>
+            <Link className="button ghost" href={`/employees?view=${view}&date=${prevAnchor}`} prefetch={false}>
               Předchozí
             </Link>
-            <Link className="button ghost" href={`/employees?view=${view}&date=${toDateKey(new Date())}`}>
+            <Link className="button ghost" href={`/employees?view=${view}&date=${toDateKey(new Date())}`} prefetch={false}>
               Dnes
             </Link>
-            <Link className="button ghost" href={`/employees?view=${view}&date=${nextAnchor}`}>
+            <Link className="button ghost" href={`/employees?view=${view}&date=${nextAnchor}`} prefetch={false}>
               Další
             </Link>
             <Link
               className="button"
               href={`/employees?view=${view === "month" ? "week" : "month"}&date=${anchorDate}`}
+              prefetch={false}
             >
               {view === "month" ? "Týdenní pohled" : "Měsíční pohled"}
             </Link>
@@ -181,7 +182,7 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
             >
               <div className="row between">
                 <strong>{new Date(`${day}T00:00:00`).getDate()}.</strong>
-                <Link className="chip chip-button day-open-link" href={`/employees/day/${day}`}>
+                <Link className="chip chip-button day-open-link" href={`/employees/day/${day}`} prefetch={false}>
                   Detail dne
                 </Link>
               </div>

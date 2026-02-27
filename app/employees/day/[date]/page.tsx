@@ -48,11 +48,11 @@ export default async function DayPage({ params }: Props) {
             <h2>{formatCzDate(date)}</h2>
           </div>
           <div className="row gap-sm">
-            <Link className="button ghost" href="/employees">
+            <Link className="button ghost" href="/employees" prefetch={true}>
               Zpět na kalendář
             </Link>
             {["manager", "admin"].includes(user.role) ? (
-              <Link className="button" href={`/admin/schedule?date=${date}`}>
+              <Link className="button" href={`/admin/schedule?date=${date}`} prefetch={false}>
                 Otevřít admin den
               </Link>
             ) : null}

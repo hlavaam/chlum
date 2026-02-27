@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 
 import type { BaseRecord } from "@/types/models";
+import { startPerfTrace } from "@/lib/perf";
 import { nowIso } from "@/lib/utils";
 import type { Repository } from "@/lib/storage/json-repository";
 import { readTableFile } from "@/lib/storage/file-db";
@@ -18,28 +19,55 @@ export class PostgresRepository<T extends BaseRecord> implements Repository<T> {
     private readonly seedFilename?: string,
   ) {}
 
+  private summarizeSql(sql: string) {
+    return sql.replace(/\s+/g, " ").trim().slice(0, 160);
+  }
+
   private async query(sql: string, values: unknown[] = []) {
-    await ensurePostgresStorageSchema();
-    const pool = await getPostgresPool();
-    return pool.query(sql, values);
+    const trace = startPerfTrace("postgres.query", {
+      resource: this.resource,
+      sql: this.summarizeSql(sql),
+      params: values.length,
+    });
+    try {
+      await ensurePostgresStorageSchema();
+      trace.step("ensure_schema");
+      const pool = await getPostgresPool();
+      trace.step("get_pool");
+      const result = await pool.query(sql, values);
+      trace.step("execute", { row_count: Number(result.rowCount ?? 0) });
+      trace.end();
+      return result;
+    } catch (error) {
+      trace.fail(error);
+      throw error;
+    }
   }
 
   private async seedFromJsonIfEmpty() {
     if (this.seeded || !this.seedFilename) return;
+    const trace = startPerfTrace("postgres.seed", {
+      resource: this.resource,
+      seed_file: this.seedFilename,
+    });
 
     const countResult = await this.query(
       "select count(*)::int as count from app_records where resource = $1",
       [this.resource],
     );
     const count = Number(countResult.rows[0]?.count ?? 0);
+    trace.step("count_existing", { count });
     if (count > 0) {
       this.seeded = true;
+      trace.end({ status: "skipped_non_empty" });
       return;
     }
 
     const rows = await readTableFile<T>(this.seedFilename);
+    trace.step("load_seed_file", { rows: rows.length });
     if (rows.length === 0) {
       this.seeded = true;
+      trace.end({ status: "skipped_empty_file" });
       return;
     }
 
@@ -54,6 +82,7 @@ export class PostgresRepository<T extends BaseRecord> implements Repository<T> {
       );
     }
     this.seeded = true;
+    trace.end({ status: "seeded", rows: rows.length });
   }
 
   async loadAll(): Promise<T[]> {

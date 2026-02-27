@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 
 import { cookies } from "next/headers";
 
+import { startPerfTrace } from "@/lib/perf";
 import { usersService } from "@/lib/services/users";
 import type { UserRecord } from "@/types/models";
 
@@ -37,14 +38,33 @@ export function verifySessionToken(token: string): { userId: string; expiresAt: 
 }
 
 export async function getCurrentUser(): Promise<UserRecord | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
-  if (!token) return null;
-  const parsed = verifySessionToken(token);
-  if (!parsed) return null;
-  const user = await usersService.findById(parsed.userId);
-  if (!user || !user.active) return null;
-  return user;
+  const trace = startPerfTrace("auth.get_current_user");
+  try {
+    const cookieStore = await cookies();
+    trace.step("cookies");
+    const token = cookieStore.get(COOKIE_NAME)?.value;
+    if (!token) {
+      trace.end({ result: "no_token" });
+      return null;
+    }
+    const parsed = verifySessionToken(token);
+    trace.step("verify_token", { valid: Boolean(parsed) });
+    if (!parsed) {
+      trace.end({ result: "invalid_token" });
+      return null;
+    }
+    const user = await usersService.findById(parsed.userId);
+    trace.step("load_user", { found: Boolean(user), user_id: parsed.userId });
+    if (!user || !user.active) {
+      trace.end({ result: "inactive_or_missing" });
+      return null;
+    }
+    trace.end({ result: "ok", role: user.role });
+    return user;
+  } catch (error) {
+    trace.fail(error);
+    throw error;
+  }
 }
 
 export async function setSessionCookie(userId: string) {

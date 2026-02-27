@@ -54,7 +54,7 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
             <h2>Provoz dne {date}</h2>
           </div>
           <div className="row gap-sm">
-            <Link className="button ghost" href={`/employees/day/${date}`}>
+            <Link className="button ghost" href={`/employees/day/${date}`} prefetch={true}>
               Náhled dne
             </Link>
             <a className="button" href="/api/admin/export/shifts">
@@ -67,12 +67,14 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
           <Link
             className={`button ${tab === "calendar" ? "" : "ghost"}`}
             href={`/admin/schedule?tab=calendar&date=${date}`}
+            prefetch={false}
           >
             Kalendář + Presety
           </Link>
           <Link
             className={`button ${tab === "admin" ? "" : "ghost"}`}
             href={`/admin/schedule?tab=admin&date=${date}`}
+            prefetch={false}
           >
             Admin (obsazení)
           </Link>
