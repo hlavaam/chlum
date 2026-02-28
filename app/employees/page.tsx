@@ -170,6 +170,9 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
       <section className={view === "month" ? "calendar-grid month" : "calendar-grid week"}>
         {days.map((day) => {
           const summary = summaryMap.get(day);
+          const dayDate = new Date(`${day}T00:00:00`);
+          const isOutsideAnchorMonth =
+            view === "month" && (dayDate.getMonth() !== anchor.getMonth() || dayDate.getFullYear() !== anchor.getFullYear());
           const dayEvents = eventsByDate.get(day) ?? [];
           const hasMyShift = summary?.shifts.some((shift) => myShiftIds.has(shift.id)) ?? false;
           const hasWedding =
@@ -193,15 +196,15 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
           return (
             <article
               key={day}
-              className={`day-card ${hasMyShift ? "mine" : ""} ${hasWedding ? "wedding-day" : ""} ${hasEvent ? "event-day" : ""}`.trim()}
+              className={`day-card ${hasMyShift ? "mine" : ""} ${hasWedding ? "wedding-day" : ""} ${hasEvent ? "event-day" : ""} ${isOutsideAnchorMonth ? "outside-month" : ""}`.trim()}
             >
               <div className="row between">
-                <strong>{new Date(`${day}T00:00:00`).getDate()}.</strong>
+                <strong>{dayDate.getDate()}.</strong>
                 <AppLink className="chip chip-button day-open-link" href={`/employees/day/${day}`}>
                   Detail dne
                 </AppLink>
               </div>
-              <p className="subtle">{new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(new Date(`${day}T00:00:00`))}</p>
+              <p className="subtle">{new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(dayDate)}</p>
 
               {summary || dayEvents.length > 0 ? (
                 <div className="stack">

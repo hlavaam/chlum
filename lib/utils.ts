@@ -51,8 +51,8 @@ export function endOfMonth(date: Date): Date {
 }
 
 export function getMonthGrid(date: Date): string[] {
-  const start = startOfMonth(date);
-  const end = endOfMonth(date);
+  const start = startOfWeek(startOfMonth(date));
+  const end = endOfWeek(endOfMonth(date));
   const out: string[] = [];
   for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
     out.push(toDateKey(d));
