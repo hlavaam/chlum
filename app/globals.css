@@ -342,8 +342,18 @@ ul {
 }
 
 .day-card.mine {
-  border-color: rgba(179, 52, 52, 0.42);
-  box-shadow: inset 0 0 0 1px rgba(179, 52, 52, 0.2), var(--shadow);
+  background:
+    linear-gradient(180deg, rgba(228, 247, 218, 0.96) 0%, rgba(255, 255, 255, 0.86) 100%);
+  border-color: rgba(102, 167, 82, 0.48);
+  box-shadow: inset 0 0 0 1px rgba(120, 186, 95, 0.24), var(--shadow);
+}
+
+.day-card.mine.wedding-day,
+.day-card.mine.event-day {
+  background:
+    linear-gradient(180deg, rgba(225, 244, 214, 0.96) 0%, rgba(255, 255, 255, 0.86) 100%);
+  border-color: rgba(102, 167, 82, 0.48);
+  box-shadow: inset 0 0 0 1px rgba(120, 186, 95, 0.24), var(--shadow);
 }
 
 .day-card.wedding-day,
@@ -460,7 +470,7 @@ ul {
 }
 
 .day-location-row.mine-row {
-  box-shadow: inset 0 0 0 1px rgba(179, 52, 52, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(113, 177, 85, 0.32);
 }
 
 .day-location-main {
@@ -547,6 +557,14 @@ th {
   font-size: 0.82rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.admin-table td {
+  word-break: break-word;
+}
+
+.admin-inline-form {
+  width: 100%;
 }
 
 input,
@@ -765,6 +783,94 @@ details > summary {
 
   .grid-form {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-table {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .admin-table thead {
+    display: none;
+  }
+
+  .admin-table tbody,
+  .admin-table tr,
+  .admin-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .admin-table tr {
+    margin-bottom: 0.6rem;
+    padding: 0.65rem 0.72rem;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 8px 16px rgba(28, 26, 20, 0.06);
+  }
+
+  .admin-table tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .admin-table td {
+    border-bottom: 1px dashed rgba(0, 0, 0, 0.08);
+    padding: 0.42rem 0;
+  }
+
+  .admin-table td:last-child {
+    border-bottom: none;
+  }
+
+  .admin-table td[data-label] {
+    display: grid;
+    grid-template-columns: minmax(92px, 38%) minmax(0, 1fr);
+    align-items: start;
+    gap: 0.55rem;
+  }
+
+  .admin-table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    line-height: 1.25;
+    padding-top: 0.1rem;
+  }
+
+  .admin-table td[data-label=""] {
+    display: block;
+  }
+
+  .admin-table td[data-label=""]::before {
+    content: none;
+  }
+
+  .admin-table td > form,
+  .admin-table td > .row,
+  .admin-table td > .stack {
+    width: 100%;
+  }
+
+  .admin-table input,
+  .admin-table select,
+  .admin-table textarea,
+  .admin-inline-form select,
+  .admin-inline-form .button {
+    width: 100%;
+  }
+
+  .admin-inline-form {
+    display: grid;
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 0.45rem;
   }
 }
 

@@ -219,7 +219,7 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
                   </form>
                 </div>
 
-                <form action={manualAssignAction} className="row gap-sm wrap">
+                <form action={manualAssignAction} className="row gap-sm wrap admin-inline-form">
                   <input type="hidden" name="shiftId" value={detail.shift.id} />
                   <select name="userId" required defaultValue="">
                     <option value="" disabled>
@@ -311,7 +311,7 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
                 </details>
 
                 <div className="table-wrap">
-                  <table>
+                  <table className="admin-table">
                     <thead>
                       <tr>
                         <th>Jméno</th>
@@ -322,17 +322,17 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
                     <tbody>
                       {detail.assignments.length === 0 ? (
                         <tr>
-                          <td colSpan={3} className="subtle">
+                          <td colSpan={3} className="subtle" data-label="">
                             Zatím nikdo přihlášen.
                           </td>
                         </tr>
                       ) : (
                         detail.assignments.map((assignment) => (
                           <tr key={assignment.id}>
-                            <td>{assignment.userName ?? assignment.userId}</td>
-                            <td>{assignment.status === "pending" ? "Čeká" : "Potvrzeno"}</td>
-                            <td>
-                              <form action={updateAssignmentStatusAction} className="row gap-sm">
+                            <td data-label="Jméno">{assignment.userName ?? assignment.userId}</td>
+                            <td data-label="Stav">{assignment.status === "pending" ? "Čeká" : "Potvrzeno"}</td>
+                            <td data-label="Akce">
+                              <form action={updateAssignmentStatusAction} className="row gap-sm wrap admin-inline-form">
                                 <input type="hidden" name="assignmentId" value={assignment.id} />
                                 <select name="status" defaultValue={assignment.status}>
                                   <option value="pending">Čeká</option>
@@ -356,7 +356,7 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
           <section className="panel stack">
             <h3>Všechny dny (rychlý přehled)</h3>
             <div className="table-wrap">
-              <table>
+              <table className="admin-table">
                 <thead>
                   <tr>
                     <th>Datum</th>
@@ -374,17 +374,17 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
                     .sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`))
                     .map((shift) => (
                       <tr key={shift.id}>
-                        <td>{shift.date}</td>
-                        <td>
+                        <td data-label="Datum">{shift.date}</td>
+                        <td data-label="Čas">
                           {shift.startTime}–{shift.endTime}
                         </td>
-                        <td>{locationMap.get(shift.locationId)?.code}</td>
-                        <td>{shiftTypeLabels[shift.type]}</td>
-                        <td>{shift.minimumPeople}</td>
-                        <td>{shift.requiresApproval ? "ano" : "ne"}</td>
-                        <td>{shift.notes ?? ""}</td>
-                        <td>
-                          <form action={deleteShiftAction} className="row">
+                        <td data-label="Pobočka">{locationMap.get(shift.locationId)?.code}</td>
+                        <td data-label="Typ">{shiftTypeLabels[shift.type]}</td>
+                        <td data-label="Min">{shift.minimumPeople}</td>
+                        <td data-label="Approval">{shift.requiresApproval ? "ano" : "ne"}</td>
+                        <td data-label="Poznámka">{shift.notes ?? ""}</td>
+                        <td data-label="Akce">
+                          <form action={deleteShiftAction} className="row wrap admin-inline-form">
                             <input type="hidden" name="shiftId" value={shift.id} />
                             <input type="hidden" name="date" value={shift.date} />
                             <input type="hidden" name="redirectTo" value={`/admin/schedule?tab=admin&date=${date}`} />

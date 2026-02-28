@@ -57,7 +57,7 @@ export default async function AdminPeoplePage() {
         <div className="panel stack">
           <h2>Uživatelé</h2>
           <div className="table-wrap">
-            <table>
+            <table className="admin-table">
               <thead>
                 <tr>
                   <th>Jméno</th>
@@ -69,11 +69,11 @@ export default async function AdminPeoplePage() {
               <tbody>
                 {users.map((user) => (
                   <tr key={user.id}>
-                    <td>{user.name}</td>
-                    <td>{user.email}</td>
-                    <td>{roleLabels[user.role]}</td>
-                    <td>
-                      <form action={updateUserRoleAction} className="row gap-sm">
+                    <td data-label="Jméno">{user.name}</td>
+                    <td data-label="E-mail">{user.email}</td>
+                    <td data-label="Role">{roleLabels[user.role]}</td>
+                    <td data-label="Akce">
+                      <form action={updateUserRoleAction} className="row gap-sm wrap admin-inline-form">
                         <input type="hidden" name="userId" value={user.id} />
                         <select name="role" defaultValue={user.role}>
                           {APP_ROLES.map((role) => (
@@ -115,7 +115,7 @@ export default async function AdminPeoplePage() {
           </form>
 
           <div className="table-wrap">
-            <table>
+            <table className="admin-table">
               <thead>
                 <tr>
                   <th>Kód</th>
@@ -129,13 +129,13 @@ export default async function AdminPeoplePage() {
                   const formId = `location-edit-${location.id}`;
                   return (
                     <tr key={location.id}>
-                      <td>
+                      <td data-label="Kód">
                         <input form={formId} type="text" name="code" defaultValue={location.code} required />
                       </td>
-                      <td>
+                      <td data-label="Název">
                         <input form={formId} type="text" name="name" defaultValue={location.name} required />
                       </td>
-                      <td>
+                      <td data-label="Adresa">
                         <input
                           form={formId}
                           type="text"
@@ -144,8 +144,8 @@ export default async function AdminPeoplePage() {
                           required
                         />
                       </td>
-                      <td>
-                        <form id={formId} action={updateLocationAction} className="row gap-sm wrap">
+                      <td data-label="Akce">
+                        <form id={formId} action={updateLocationAction} className="row gap-sm wrap admin-inline-form">
                           <input type="hidden" name="locationId" value={location.id} />
                           <button type="submit" className="button ghost">
                             Uložit

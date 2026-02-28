@@ -26,11 +26,11 @@ export default async function LoginPage({ searchParams }: Props) {
         <form action={loginAction} className="stack">
           <label>
             E-mail
-            <input type="email" name="email" defaultValue="petra@chlum.local" required />
+            <input type="email" name="email" required />
           </label>
           <label>
             Heslo
-            <input type="password" name="password" defaultValue="brigadnik123" required />
+            <input type="password" name="password" required />
           </label>
           <button type="submit" className="button">
             Přihlásit

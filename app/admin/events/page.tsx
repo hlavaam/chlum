@@ -63,7 +63,7 @@ export default async function AdminEventsPage() {
       <section className="panel stack">
         <h2>Seznam eventů</h2>
         <div className="table-wrap">
-          <table>
+          <table className="admin-table">
             <thead>
               <tr>
                 <th>Datum</th>
@@ -81,17 +81,17 @@ export default async function AdminEventsPage() {
                 .sort((a, b) => `${a.date}${a.startTime}`.localeCompare(`${b.date}${b.startTime}`))
                 .map((event) => (
                   <tr key={event.id}>
-                    <td>{event.date}</td>
-                    <td>{event.name}</td>
-                    <td>{eventTypeLabels[event.type]}</td>
-                    <td>{locationMap.get(event.locationId)?.name}</td>
-                    <td>
+                    <td data-label="Datum">{event.date}</td>
+                    <td data-label="Název">{event.name}</td>
+                    <td data-label="Typ">{eventTypeLabels[event.type]}</td>
+                    <td data-label="Pobočka">{locationMap.get(event.locationId)?.name}</td>
+                    <td data-label="Čas">
                       {event.startTime}–{event.endTime}
                     </td>
-                    <td>{event.minimumPeople}</td>
-                    <td>{event.notes ?? ""}</td>
-                    <td>
-                      <form action={deleteEventAction} className="row">
+                    <td data-label="Min">{event.minimumPeople}</td>
+                    <td data-label="Poznámka">{event.notes ?? ""}</td>
+                    <td data-label="Akce">
+                      <form action={deleteEventAction} className="row wrap admin-inline-form">
                         <input type="hidden" name="eventId" value={event.id} />
                         <input type="hidden" name="date" value={event.date} />
                         <input type="hidden" name="redirectTo" value="/admin/events" />
