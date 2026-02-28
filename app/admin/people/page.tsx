@@ -1,12 +1,19 @@
-import { createLocationAction, createUserAction, updateLocationAction, updateUserRoleAction } from "@/lib/actions";
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import {
+  createLocationAction,
+  createUserAction,
+  deleteUserAction,
+  updateLocationAction,
+  updateUserPasswordAction,
+  updateUserRoleAction,
+} from "@/lib/actions";
 import { requireRoles } from "@/lib/auth/rbac";
 import { APP_ROLES, roleLabels } from "@/lib/constants";
-import { locationsService } from "@/lib/services/locations";
-import { usersService } from "@/lib/services/users";
+import { getLocationsCached, getUsersCached } from "@/lib/services/cached-reads";
 
 export default async function AdminPeoplePage() {
-  await requireRoles(["admin"]);
-  const [users, locations] = await Promise.all([usersService.loadAll(), locationsService.loadAll()]);
+  const admin = await requireRoles(["admin"]);
+  const [users, locations] = await Promise.all([getUsersCached(), getLocationsCached()]);
 
   return (
     <div className="stack gap-lg">
@@ -73,19 +80,48 @@ export default async function AdminPeoplePage() {
                     <td data-label="E-mail">{user.email}</td>
                     <td data-label="Role">{roleLabels[user.role]}</td>
                     <td data-label="Akce">
-                      <form action={updateUserRoleAction} className="row gap-sm wrap admin-inline-form">
-                        <input type="hidden" name="userId" value={user.id} />
-                        <select name="role" defaultValue={user.role}>
-                          {APP_ROLES.map((role) => (
-                            <option key={role} value={role}>
-                              {roleLabels[role]}
-                            </option>
-                          ))}
-                        </select>
-                        <button type="submit" className="button ghost">
-                          Uložit
-                        </button>
-                      </form>
+                      <div className="stack admin-user-actions">
+                        <form action={updateUserRoleAction} className="row gap-sm wrap admin-inline-form">
+                          <input type="hidden" name="userId" value={user.id} />
+                          <select name="role" defaultValue={user.role}>
+                            {APP_ROLES.map((role) => (
+                              <option key={role} value={role}>
+                                {roleLabels[role]}
+                              </option>
+                            ))}
+                          </select>
+                          <button type="submit" className="button ghost">
+                            Uložit roli
+                          </button>
+                        </form>
+
+                        <form action={updateUserPasswordAction} className="row gap-sm wrap admin-inline-form">
+                          <input type="hidden" name="userId" value={user.id} />
+                          <input
+                            type="password"
+                            name="password"
+                            minLength={6}
+                            placeholder="Nové heslo"
+                            required
+                          />
+                          <button type="submit" className="button ghost">
+                            Změnit heslo
+                          </button>
+                        </form>
+
+                        <form action={deleteUserAction} className="row gap-sm wrap admin-inline-form">
+                          <input type="hidden" name="userId" value={user.id} />
+                          <ConfirmSubmitButton
+                            type="submit"
+                            className="button ghost danger"
+                            disabled={admin.id === user.id}
+                            confirmMessage={`Smazat uživatele ${user.name}?`}
+                          >
+                            Smazat uživatele
+                          </ConfirmSubmitButton>
+                        </form>
+                        {admin.id === user.id ? <p className="subtle tiny">Aktuálně přihlášený admin nejde smazat.</p> : null}
+                      </div>
                     </td>
                   </tr>
                 ))}

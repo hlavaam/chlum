@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { PerfClientMetrics } from "@/components/perf-client-metrics";
 
 import "./globals.css";
 
@@ -19,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="cs">
       <body>
         {children}
+        <PerfClientMetrics />
         <SpeedInsights />
       </body>
     </html>

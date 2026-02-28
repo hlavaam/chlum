@@ -3,12 +3,11 @@ import { FlexibleEndTimeFields } from "@/components/flexible-end-time-fields";
 import { createEventAction, deleteEventAction } from "@/lib/actions";
 import { requireRoles } from "@/lib/auth/rbac";
 import { eventTypeLabels } from "@/lib/constants";
-import { eventsService } from "@/lib/services/events";
-import { locationsService } from "@/lib/services/locations";
+import { getEventsCached, getLocationsCached } from "@/lib/services/cached-reads";
 
 export default async function AdminEventsPage() {
   await requireRoles(["manager", "admin"]);
-  const [locations, events] = await Promise.all([locationsService.loadAll(), eventsService.loadAll()]);
+  const [locations, events] = await Promise.all([getLocationsCached(), getEventsCached()]);
   const locationMap = new Map(locations.map((l) => [l.id, l]));
 
   return (

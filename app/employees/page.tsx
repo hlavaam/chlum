@@ -1,9 +1,8 @@
-import Link from "next/link";
-
+import { AppLink } from "@/components/app-link";
 import { ShiftAssignmentButton } from "@/components/shift-assignment-button";
 import { requireUser } from "@/lib/auth/rbac";
 import { shiftTypeLabels } from "@/lib/constants";
-import { scheduleService } from "@/lib/services/schedule";
+import { getCurrentUserDashboardSnapshot } from "@/lib/services/cached-reads";
 import { assignmentsService } from "@/lib/services/assignments";
 import { addDays, getMonthGrid, getWeekDays, parseDateKey, startOfMonth, toDateKey } from "@/lib/utils";
 import type { EventType, ShiftType } from "@/types/models";
@@ -68,8 +67,13 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
   const days = view === "week" ? getWeekDays(anchor) : getMonthGrid(anchor);
   const startDate = days[0];
   const endDate = days[days.length - 1];
-  const { summaryMap, locations, events } = await scheduleService.dashboardContext({ startDate, endDate });
-  const myAssignments = await assignmentsService.forUser(user.id);
+  const [dashboardSnapshot, myAssignments] = await Promise.all([
+    getCurrentUserDashboardSnapshot(startDate, endDate),
+    assignmentsService.forUser(user.id),
+  ]);
+  const summaryMap = new Map(dashboardSnapshot.summaryEntries);
+  const locations = dashboardSnapshot.locations;
+  const events = dashboardSnapshot.events;
   const myShiftIds = new Set(myAssignments.map((a) => a.shiftId));
   const locationMap = new Map(locations.map((l) => [l.id, l]));
   const locationColorById = new Map(
@@ -108,31 +112,29 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
           </div>
           <div className="calendar-controls">
             <div className="row gap-sm calendar-nav-row">
-              <Link className="button ghost" href={`/employees?view=${view}&date=${prevAnchor}`} prefetch={false}>
+              <AppLink className="button ghost" href={`/employees?view=${view}&date=${prevAnchor}`}>
                 Předchozí
-              </Link>
-              <Link className="button ghost" href={`/employees?view=${view}&date=${toDateKey(new Date())}`} prefetch={false}>
+              </AppLink>
+              <AppLink className="button ghost" href={`/employees?view=${view}&date=${toDateKey(new Date())}`}>
                 Dnes
-              </Link>
-              <Link className="button ghost" href={`/employees?view=${view}&date=${nextAnchor}`} prefetch={false}>
+              </AppLink>
+              <AppLink className="button ghost" href={`/employees?view=${view}&date=${nextAnchor}`}>
                 Další
-              </Link>
+              </AppLink>
             </div>
             <div className="view-slider" role="tablist" aria-label="Přepnutí zobrazení kalendáře">
-              <Link
+              <AppLink
                 className={`view-slide ${view === "week" ? "active" : ""}`}
                 href={`/employees?view=week&date=${anchorDate}`}
-                prefetch={false}
               >
                 Týdenní přehled
-              </Link>
-              <Link
+              </AppLink>
+              <AppLink
                 className={`view-slide ${view === "month" ? "active" : ""}`}
                 href={`/employees?view=month&date=${anchorDate}`}
-                prefetch={false}
               >
                 Měsíční přehled
-              </Link>
+              </AppLink>
             </div>
           </div>
         </div>
@@ -195,9 +197,9 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
             >
               <div className="row between">
                 <strong>{new Date(`${day}T00:00:00`).getDate()}.</strong>
-                <Link className="chip chip-button day-open-link" href={`/employees/day/${day}`} prefetch={false}>
+                <AppLink className="chip chip-button day-open-link" href={`/employees/day/${day}`}>
                   Detail dne
-                </Link>
+                </AppLink>
               </div>
               <p className="subtle">{new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(new Date(`${day}T00:00:00`))}</p>
 

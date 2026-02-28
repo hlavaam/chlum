@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AppLink } from "@/components/app-link";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { FlexibleEndTimeFields } from "@/components/flexible-end-time-fields";
 import { ShiftAssignmentButton } from "@/components/shift-assignment-button";
@@ -13,9 +13,7 @@ import {
 } from "@/lib/actions";
 import { requireUser } from "@/lib/auth/rbac";
 import { SHIFT_TYPES, shiftTypeLabels } from "@/lib/constants";
-import { eventsService } from "@/lib/services/events";
-import { locationsService } from "@/lib/services/locations";
-import { scheduleService } from "@/lib/services/schedule";
+import { getDayDetailsCached, getEventsForDateCached, getLocationsCached } from "@/lib/services/cached-reads";
 import { formatCzDate, formatTimeRange } from "@/lib/utils";
 
 type Props = {
@@ -28,9 +26,9 @@ export default async function DayPage({ params }: Props) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound();
 
   const [details, locations, events] = await Promise.all([
-    scheduleService.getDayDetails(date),
-    locationsService.loadAll(),
-    eventsService.forDate(date),
+    getDayDetailsCached(date),
+    getLocationsCached(),
+    getEventsForDateCached(date),
   ]);
   const locationMap = new Map(locations.map((l) => [l.id, l]));
   const dayEvents = events;
@@ -47,13 +45,13 @@ export default async function DayPage({ params }: Props) {
             <h2>{formatCzDate(date)}</h2>
           </div>
           <div className="row gap-sm">
-            <Link className="button ghost" href="/employees" prefetch={true}>
+            <AppLink className="button ghost" href="/employees">
               Zpět na kalendář
-            </Link>
+            </AppLink>
             {["manager", "admin"].includes(user.role) ? (
-              <Link className="button" href={`/admin/schedule?date=${date}`} prefetch={false}>
+              <AppLink className="button" href={`/admin/schedule?date=${date}`}>
                 Otevřít admin den
-              </Link>
+              </AppLink>
             ) : null}
           </div>
         </div>

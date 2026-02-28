@@ -47,6 +47,16 @@ class AssignmentsService extends BaseCrudService<AssignmentRecord> {
     }
     return deleted;
   }
+
+  async deleteForUser(userId: string) {
+    const items = await this.forUser(userId);
+    let deleted = 0;
+    for (const item of items) {
+      const ok = await this.delete(item.id);
+      if (ok) deleted += 1;
+    }
+    return deleted;
+  }
 }
 
 export const assignmentsService = new AssignmentsService(assignmentsRepository);

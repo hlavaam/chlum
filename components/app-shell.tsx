@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { AppLink } from "@/components/app-link";
 
 type NavItem = { href: string; label: string };
 type AppRole = "brigadnik" | "manager" | "admin";
@@ -51,14 +51,13 @@ export function AppShell({ title: _title, subtitle, user, nav, children }: AppSh
 
       <nav className="tabs">
         {nav.map((item) => (
-          <Link
+          <AppLink
             key={item.href}
             href={item.href}
-            prefetch={false}
             className={cx("tab", pathname === item.href && "active")}
           >
             {item.label}
-          </Link>
+          </AppLink>
         ))}
       </nav>
 
@@ -66,14 +65,13 @@ export function AppShell({ title: _title, subtitle, user, nav, children }: AppSh
 
       <nav className="mobile-nav" aria-label="Mobilní navigace">
         {nav.map((item) => (
-          <Link
+          <AppLink
             key={`mobile-${item.href}`}
             href={item.href}
-            prefetch={false}
             className={cx("mobile-nav-link", pathname === item.href && "active")}
           >
             <span>{item.label}</span>
-          </Link>
+          </AppLink>
         ))}
       </nav>
     </div>

@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
 
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 import { startPerfTrace } from "@/lib/perf";
 import { usersService } from "@/lib/services/users";
@@ -37,7 +38,7 @@ export function verifySessionToken(token: string): { userId: string; expiresAt: 
   return { userId, expiresAt };
 }
 
-export async function getCurrentUser(): Promise<UserRecord | null> {
+const resolveCurrentUser = cache(async (): Promise<UserRecord | null> => {
   const trace = startPerfTrace("auth.get_current_user");
   try {
     const cookieStore = await cookies();
@@ -65,6 +66,10 @@ export async function getCurrentUser(): Promise<UserRecord | null> {
     trace.fail(error);
     throw error;
   }
+});
+
+export async function getCurrentUser(): Promise<UserRecord | null> {
+  return resolveCurrentUser();
 }
 
 export async function setSessionCookie(userId: string) {

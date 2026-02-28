@@ -374,6 +374,8 @@ ul {
   padding: 0.3rem 0.55rem;
   border: 1px solid rgba(0, 0, 0, 0.06);
   background: white;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .badge.neutral {
@@ -424,6 +426,10 @@ ul {
   background: rgba(30, 107, 91, 0.08);
   color: #1f5c4f;
   border: 1px solid transparent;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .calendar-help {
@@ -565,6 +571,14 @@ th {
 
 .admin-inline-form {
   width: 100%;
+}
+
+.admin-user-actions {
+  gap: 0.45rem;
+}
+
+.admin-user-actions .subtle {
+  margin-top: -0.05rem;
 }
 
 input,
@@ -854,8 +868,10 @@ details > summary {
 
   .admin-table td > form,
   .admin-table td > .row,
-  .admin-table td > .stack {
+  .admin-table td > .stack,
+  .admin-table td > div {
     width: 100%;
+    min-width: 0;
   }
 
   .admin-table input,

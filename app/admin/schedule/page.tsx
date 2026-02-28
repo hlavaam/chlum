@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { AppLink } from "@/components/app-link";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { DateMultiPicker } from "@/components/date-multi-picker";
 import { FlexibleEndTimeFields } from "@/components/flexible-end-time-fields";
@@ -14,11 +13,11 @@ import {
 import { requireRoles } from "@/lib/auth/rbac";
 import { SHIFT_TYPES, shiftTypeLabels } from "@/lib/constants";
 import { assignmentsService } from "@/lib/services/assignments";
-import { locationsService } from "@/lib/services/locations";
-import { scheduleService } from "@/lib/services/schedule";
+import { getDayDetailsCached, getLocationsCached, getUsersCached } from "@/lib/services/cached-reads";
 import { shiftsService } from "@/lib/services/shifts";
-import { usersService } from "@/lib/services/users";
 import { toDateKey } from "@/lib/utils";
+import type { AssignmentRecord, ShiftRecord, UserRecord } from "@/types/models";
+import type { DayShiftView } from "@/lib/services/schedule";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -34,16 +33,20 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
   const params = await searchParams;
   const date = readString(params, "date") || toDateKey(new Date());
   const tab = readString(params, "tab") === "admin" ? "admin" : "calendar";
-
-  const locations = await locationsService.loadAll();
-  const [dayDetails, users, shifts, assignments] = tab === "admin"
-    ? await Promise.all([
-        scheduleService.getDayDetails(date),
-        usersService.loadAll(),
+  const locationsPromise = getLocationsCached();
+  const emptyAdminData: [DayShiftView[], UserRecord[], ShiftRecord[], AssignmentRecord[]] = [[], [], [], []];
+  const adminDataPromise: Promise<[DayShiftView[], UserRecord[], ShiftRecord[], AssignmentRecord[]]> = tab === "admin"
+    ? Promise.all([
+        getDayDetailsCached(date),
+        getUsersCached(),
         shiftsService.loadAll(),
         assignmentsService.loadAll(),
       ])
-    : [[], [], [], []];
+    : Promise.resolve(emptyAdminData);
+  const [locations, [dayDetails, users, shifts, assignments]] = await Promise.all([
+    locationsPromise,
+    adminDataPromise,
+  ]);
   const locationMap = new Map(locations.map((l) => [l.id, l]));
   const pendingAssignments = assignments.filter((a) => a.status === "pending");
 
@@ -56,9 +59,9 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
             <h2>Provoz dne {date}</h2>
           </div>
           <div className="row gap-sm">
-            <Link className="button ghost" href={`/employees/day/${date}`} prefetch={true}>
+            <AppLink className="button ghost" href={`/employees/day/${date}`}>
               Náhled dne
-            </Link>
+            </AppLink>
             <a className="button" href="/api/admin/export/shifts">
               Export CSV
             </a>
@@ -66,20 +69,18 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
         </div>
 
         <div className="row gap-sm wrap">
-          <Link
+          <AppLink
             className={`button ${tab === "calendar" ? "" : "ghost"}`}
             href={`/admin/schedule?tab=calendar&date=${date}`}
-            prefetch={false}
           >
             Kalendář + Presety
-          </Link>
-          <Link
+          </AppLink>
+          <AppLink
             className={`button ${tab === "admin" ? "" : "ghost"}`}
             href={`/admin/schedule?tab=admin&date=${date}`}
-            prefetch={false}
           >
             Admin (obsazení)
-          </Link>
+          </AppLink>
         </div>
         {tab === "calendar" ? <form action={createShiftAction} className="grid-form">
           <label>
