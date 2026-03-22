@@ -801,7 +801,7 @@ details > summary {
 
 @media (max-width: 980px) {
   .calendar-grid.week {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .grid-2 {
@@ -814,6 +814,10 @@ details > summary {
 }
 
 @media (max-width: 760px) {
+  .calendar-grid.week {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .admin-table {
     min-width: 0;
     border-collapse: separate;
@@ -988,7 +992,10 @@ details > summary {
     padding-bottom: 5.6rem;
   }
 
-  .calendar-grid.week,
+  .calendar-grid.week {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .grid-form,
   .checkbox-grid {
     grid-template-columns: 1fr;
@@ -1009,7 +1016,7 @@ details > summary {
 
   .day-location-row {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
   }
 
   .day-location-action {
@@ -1017,7 +1024,10 @@ details > summary {
   }
 
   .day-location-action .quick-action {
-    width: auto;
+    width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .panel {
@@ -1091,6 +1101,10 @@ details > summary {
 }
 
 @media (max-width: 420px) {
+  .calendar-grid.week {
+    grid-template-columns: 1fr;
+  }
+
   .topbar-description {
     font-size: 0.86rem;
   }
