@@ -8,6 +8,16 @@
     "binding": "ASSETS",
     "directory": ".open-next/assets"
   },
+  "routes": [
+    {
+      "pattern": "vysker.com/*",
+      "zone_name": "vysker.com"
+    },
+    {
+      "pattern": "www.vysker.com/*",
+      "zone_name": "vysker.com"
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",

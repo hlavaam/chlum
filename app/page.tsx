@@ -1,7 +1,7 @@
 import { AppLink } from "@/components/app-link";
 import { PublicDailyMenu } from "@/components/public-daily-menu";
 import { getCurrentUser } from "@/lib/auth/session";
-import { staffPaths } from "@/lib/paths";
+import { adminPaths, workPaths } from "@/lib/paths";
 import { dailyMenuService, toMenuDateKey } from "@/lib/services/daily-menu";
 
 export const dynamic = "force-dynamic";
@@ -35,8 +35,16 @@ const EXPERIENCES = [
 export default async function HomePage() {
   const today = toMenuDateKey(new Date());
   const [user, todayMenu] = await Promise.all([getCurrentUser(), dailyMenuService.getMenu(today)]);
-  const staffHref = user ? staffPaths.employees : staffPaths.login;
-  const staffLabel = user ? "Pokračovat do plánování" : "Vstup pro brigádníky";
+  const staffHref = !user
+    ? workPaths.login
+    : (user.role === "manager" || user.role === "admin")
+      ? adminPaths.adminMenu
+      : workPaths.employees;
+  const staffLabel = !user
+    ? "Vstup do worku"
+    : (user.role === "manager" || user.role === "admin")
+      ? "Vstup do adminu"
+      : "Pokračovat do worku";
 
   return (
     <main className="public-site">
@@ -100,7 +108,7 @@ export default async function HomePage() {
             <p className="eyebrow">Dnes ve Vyskři</p>
             <h2>Hosté vidí web. Tým řídí směny v interní části.</h2>
             <p className="public-muted">
-              Interní plánování je nově schované pod `/brigadnici`, takže veřejná prezentace restaurace a provozní systém
+              Interní plánování je nově rozdělené na `/admin` a `/work`, takže veřejná prezentace restaurace a provozní systém
               si nepřekáží.
             </p>
             <div className="public-chip-row">

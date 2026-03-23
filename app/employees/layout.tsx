@@ -1,21 +1,25 @@
 import { AppShell } from "@/components/app-shell";
 import { requireUser } from "@/lib/auth/rbac";
-import { staffPaths } from "@/lib/paths";
+import { adminPaths, workPaths } from "@/lib/paths";
 
 export default async function EmployeesLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireUser();
+  const user = await requireUser({ loginPath: workPaths.login });
   const nav = [
-    { href: staffPaths.employees, label: "Kalendář" },
+    { href: workPaths.employees, label: "Kalendář" },
     ...(user.role === "brigadnik" || user.role === "admin"
-      ? [{ href: staffPaths.employeesMy, label: "Moje směny" }]
+      ? [{ href: workPaths.employeesMy, label: "Moje směny" }]
       : []),
-    { href: staffPaths.adminSchedule, label: "Admin" },
-  ].filter((item) => (item.href.startsWith(`${staffPaths.root}/admin`) ? ["manager", "admin"].includes(user.role) : true));
+    ...(user.role === "manager" || user.role === "admin"
+      ? [{ href: adminPaths.adminMenu, label: "Admin" }]
+      : []),
+  ];
 
   return (
     <AppShell
       title="Brigádníci"
       subtitle="Měsíční a týdenní plán restaurace, svateb a eventů"
+      eyebrow="Work / Brigádníci"
+      logoutPath={workPaths.login}
       user={user}
       nav={nav}
     >
@@ -23,4 +27,3 @@ export default async function EmployeesLayout({ children }: { children: React.Re
     </AppShell>
   );
 }
-

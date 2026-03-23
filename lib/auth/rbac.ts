@@ -4,18 +4,23 @@ import { staffPaths } from "@/lib/paths";
 import { getCurrentUser } from "@/lib/auth/session";
 import type { AppRole, UserRecord } from "@/types/models";
 
-export async function requireUser(): Promise<UserRecord> {
+type AuthRedirectOptions = {
+  loginPath?: string;
+  fallbackPath?: string;
+};
+
+export async function requireUser(options: AuthRedirectOptions = {}): Promise<UserRecord> {
   const user = await getCurrentUser();
   if (!user) {
-    redirect(staffPaths.login);
+    redirect(options.loginPath ?? staffPaths.login);
   }
   return user;
 }
 
-export async function requireRoles(roles: AppRole[]): Promise<UserRecord> {
-  const user = await requireUser();
+export async function requireRoles(roles: AppRole[], options: AuthRedirectOptions = {}): Promise<UserRecord> {
+  const user = await requireUser(options);
   if (!roles.includes(user.role)) {
-    redirect(staffPaths.employees);
+    redirect(options.fallbackPath ?? staffPaths.employees);
   }
   return user;
 }

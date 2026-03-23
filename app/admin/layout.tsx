@@ -1,22 +1,26 @@
 import { AppShell } from "@/components/app-shell";
-import { requireRoles } from "@/lib/auth/rbac";
-import { staffPaths } from "@/lib/paths";
+import { getCurrentUser } from "@/lib/auth/session";
+import { adminPaths, workPaths } from "@/lib/paths";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireRoles(["manager", "admin"]);
+  const user = await getCurrentUser();
+  if (!user || (user.role !== "manager" && user.role !== "admin")) {
+    return <>{children}</>;
+  }
   const nav = [
-    { href: staffPaths.employees, label: "Kalendář" },
-    ...(user.role === "admin" ? [{ href: staffPaths.employeesMy, label: "Moje směny" }] : []),
-    { href: staffPaths.adminSchedule, label: "Admin" },
-    { href: staffPaths.adminEvents, label: "Eventy" },
-    { href: staffPaths.adminMenu, label: "Denní menu" },
-    ...(user.role === "admin" ? [{ href: staffPaths.adminPeople, label: "Lidé & pobočky" }] : []),
+    { href: adminPaths.adminMenu, label: "Jídelák" },
+    { href: adminPaths.adminSchedule, label: "Směny" },
+    { href: adminPaths.adminEvents, label: "Eventy" },
+    ...(user.role === "admin" ? [{ href: adminPaths.adminPeople, label: "Lidé & pobočky" }] : []),
+    { href: workPaths.employees, label: "Work" },
   ];
 
   return (
     <AppShell
       title="Admin / Plánování"
-      subtitle="Měsíční a týdenní plán restaurace, svateb a eventů"
+      subtitle="Správa webu, jídeláku, směn a provozu restaurace"
+      eyebrow="Admin / Restaurace Vyskeř"
+      logoutPath={adminPaths.login}
       user={user}
       nav={nav}
     >

@@ -12,7 +12,7 @@ import {
 } from "@/lib/actions";
 import { requireRoles } from "@/lib/auth/rbac";
 import { SHIFT_TYPES, shiftTypeLabels } from "@/lib/constants";
-import { staffPaths } from "@/lib/paths";
+import { adminPaths, workPaths } from "@/lib/paths";
 import { assignmentsService } from "@/lib/services/assignments";
 import { getDayDetailsCached, getLocationsCached, getUsersCached } from "@/lib/services/cached-reads";
 import { shiftsService } from "@/lib/services/shifts";
@@ -30,7 +30,10 @@ function readString(params: Record<string, string | string[] | undefined>, key: 
 }
 
 export default async function AdminSchedulePage({ searchParams }: Props) {
-  await requireRoles(["manager", "admin"]);
+  await requireRoles(["manager", "admin"], {
+    loginPath: adminPaths.login,
+    fallbackPath: adminPaths.adminMenu,
+  });
   const params = await searchParams;
   const date = readString(params, "date") || toDateKey(new Date());
   const tab = readString(params, "tab") === "admin" ? "admin" : "calendar";
@@ -60,7 +63,7 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
             <h2>Provoz dne {date}</h2>
           </div>
           <div className="row gap-sm">
-            <AppLink className="button ghost" href={staffPaths.employeeDay(date)}>
+            <AppLink className="button ghost" href={workPaths.employeeDay(date)}>
               Náhled dne
             </AppLink>
             <a className="button" href="/api/admin/export/shifts">
@@ -72,13 +75,13 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
         <div className="row gap-sm wrap">
           <AppLink
             className={`button ${tab === "calendar" ? "" : "ghost"}`}
-            href={staffPaths.adminScheduleWithParams({ tab: "calendar", date })}
+            href={adminPaths.adminScheduleWithParams({ tab: "calendar", date })}
           >
             Kalendář + Presety
           </AppLink>
           <AppLink
             className={`button ${tab === "admin" ? "" : "ghost"}`}
-            href={staffPaths.adminScheduleWithParams({ tab: "admin", date })}
+            href={adminPaths.adminScheduleWithParams({ tab: "admin", date })}
           >
             Admin (obsazení)
           </AppLink>
@@ -247,7 +250,7 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
                     <input
                       type="hidden"
                       name="redirectTo"
-                      value={staffPaths.adminScheduleWithParams({ tab: "admin", date })}
+                      value={adminPaths.adminScheduleWithParams({ tab: "admin", date })}
                     />
                     <label>
                       Datum
@@ -308,7 +311,7 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
                     <input
                       type="hidden"
                       name="redirectTo"
-                      value={staffPaths.adminScheduleWithParams({ tab: "admin", date })}
+                      value={adminPaths.adminScheduleWithParams({ tab: "admin", date })}
                     />
                     <ConfirmSubmitButton
                       type="submit"
@@ -400,7 +403,7 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
                             <input
                               type="hidden"
                               name="redirectTo"
-                              value={staffPaths.adminScheduleWithParams({ tab: "admin", date })}
+                              value={adminPaths.adminScheduleWithParams({ tab: "admin", date })}
                             />
                             <ConfirmSubmitButton
                               type="submit"

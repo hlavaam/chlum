@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
-import { staffPaths } from "@/lib/paths";
+import { workPaths } from "@/lib/paths";
 
 export default function LegacyLoginPage() {
-  redirect(staffPaths.login);
+  redirect(workPaths.login);
 }

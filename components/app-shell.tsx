@@ -18,18 +18,20 @@ function cx(...values: Array<string | false | null | undefined>) {
 interface AppShellProps {
   title: string;
   subtitle?: string;
+  eyebrow?: string;
+  logoutPath?: string;
   user: UserRecordLike;
   nav: NavItem[];
   children: React.ReactNode;
 }
 
-export function AppShell({ title: _title, subtitle, user, nav, children }: AppShellProps) {
+export function AppShell({ title: _title, subtitle, eyebrow, logoutPath, user, nav, children }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push(staffPaths.login);
+    router.push(logoutPath ?? staffPaths.login);
     router.refresh();
   }
 
@@ -37,7 +39,7 @@ export function AppShell({ title: _title, subtitle, user, nav, children }: AppSh
     <div className="app-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Správa brigádníků</p>
+          <p className="eyebrow">{eyebrow ?? "Správa brigádníků"}</p>
           <p className="topbar-description">{subtitle ?? "Měsíční a týdenní plán restaurace, svateb a eventů"}</p>
         </div>
         <div className="topbar-actions">

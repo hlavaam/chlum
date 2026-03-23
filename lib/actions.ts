@@ -11,7 +11,7 @@ import { requireRoles, requireUser } from "@/lib/auth/rbac";
 import { assignmentsService } from "@/lib/services/assignments";
 import { eventsService } from "@/lib/services/events";
 import { locationsService } from "@/lib/services/locations";
-import { staffPaths } from "@/lib/paths";
+import { adminPaths, staffPaths, workPaths } from "@/lib/paths";
 import { shiftsService } from "@/lib/services/shifts";
 import { usersService } from "@/lib/services/users";
 import type {
@@ -191,6 +191,28 @@ export async function loginAction(formData: FormData) {
   }
   await setSessionCookie(user.id);
   redirect(staffPaths.employees);
+}
+
+export async function loginWorkAction(formData: FormData) {
+  const email = getString(formData, "email");
+  const password = getString(formData, "password");
+  const user = await usersService.findByEmail(email);
+  if (!user || !verifyPassword(password, user.passwordHash) || !user.active) {
+    redirect(`${workPaths.login}?error=1`);
+  }
+  await setSessionCookie(user.id);
+  redirect(workPaths.employees);
+}
+
+export async function loginAdminAction(formData: FormData) {
+  const email = getString(formData, "email");
+  const password = getString(formData, "password");
+  const user = await usersService.findByEmail(email);
+  if (!user || !verifyPassword(password, user.passwordHash) || !user.active || (user.role !== "manager" && user.role !== "admin")) {
+    redirect(`${adminPaths.login}?error=1`);
+  }
+  await setSessionCookie(user.id);
+  redirect(adminPaths.adminMenu);
 }
 
 export async function logoutAction() {

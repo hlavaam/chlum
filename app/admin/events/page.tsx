@@ -3,11 +3,14 @@ import { FlexibleEndTimeFields } from "@/components/flexible-end-time-fields";
 import { createEventAction, deleteEventAction } from "@/lib/actions";
 import { requireRoles } from "@/lib/auth/rbac";
 import { eventTypeLabels } from "@/lib/constants";
-import { staffPaths } from "@/lib/paths";
+import { adminPaths } from "@/lib/paths";
 import { getEventsCached, getLocationsCached } from "@/lib/services/cached-reads";
 
 export default async function AdminEventsPage() {
-  await requireRoles(["manager", "admin"]);
+  await requireRoles(["manager", "admin"], {
+    loginPath: adminPaths.login,
+    fallbackPath: adminPaths.adminMenu,
+  });
   const [locations, events] = await Promise.all([getLocationsCached(), getEventsCached()]);
   const locationMap = new Map(locations.map((l) => [l.id, l]));
 
@@ -94,7 +97,7 @@ export default async function AdminEventsPage() {
                       <form action={deleteEventAction} className="row wrap admin-inline-form">
                         <input type="hidden" name="eventId" value={event.id} />
                         <input type="hidden" name="date" value={event.date} />
-                        <input type="hidden" name="redirectTo" value={staffPaths.adminEvents} />
+                        <input type="hidden" name="redirectTo" value={adminPaths.adminEvents} />
                         <ConfirmSubmitButton
                           type="submit"
                           className="button ghost danger small"

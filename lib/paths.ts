@@ -1,18 +1,32 @@
-export const staffPaths = {
-  root: "/brigadnici",
-  login: "/brigadnici/login",
-  employees: "/brigadnici/employees",
-  employeesMy: "/brigadnici/employees/my",
-  employeeDay: (date: string) => `/brigadnici/employees/day/${date}`,
-  adminSchedule: "/brigadnici/admin/schedule",
+export const workPaths = {
+  root: "/work",
+  login: "/work",
+  employees: "/work/employees",
+  employeesMy: "/work/employees/my",
+  employeeDay: (date: string) => `/work/employees/day/${date}`,
+} as const;
+
+export const adminPaths = {
+  root: "/admin",
+  login: "/admin",
+  adminSchedule: "/admin/schedule",
   adminScheduleWithParams: (params: { date?: string; tab?: "calendar" | "admin" } = {}) => {
     const search = new URLSearchParams();
     if (params.tab) search.set("tab", params.tab);
     if (params.date) search.set("date", params.date);
     const query = search.toString();
-    return query ? `/brigadnici/admin/schedule?${query}` : "/brigadnici/admin/schedule";
+    return query ? `/admin/schedule?${query}` : "/admin/schedule";
   },
-  adminEvents: "/brigadnici/admin/events",
-  adminPeople: "/brigadnici/admin/people",
-  adminMenu: "/brigadnici/admin/menu",
+  adminEvents: "/admin/events",
+  adminPeople: "/admin/people",
+  adminMenu: "/admin/menu",
+} as const;
+
+export const staffPaths = {
+  ...workPaths,
+  adminSchedule: adminPaths.adminSchedule,
+  adminScheduleWithParams: adminPaths.adminScheduleWithParams,
+  adminEvents: adminPaths.adminEvents,
+  adminPeople: adminPaths.adminPeople,
+  adminMenu: adminPaths.adminMenu,
 } as const;
