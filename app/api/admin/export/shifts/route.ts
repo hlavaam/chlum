@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { isManagerRole } from "@/lib/auth/role-access";
 import { getCurrentUser } from "@/lib/auth/session";
 import { csvEscape } from "@/lib/utils";
 import { assignmentsService } from "@/lib/services/assignments";
@@ -10,7 +11,7 @@ import { usersService } from "@/lib/services/users";
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!["manager", "admin"].includes(user.role)) {
+  if (!isManagerRole(user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

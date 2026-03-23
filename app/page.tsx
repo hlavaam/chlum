@@ -1,7 +1,8 @@
 import { AppLink } from "@/components/app-link";
 import { PublicDailyMenu } from "@/components/public-daily-menu";
+import { isManagerRole } from "@/lib/auth/role-access";
 import { getCurrentUser } from "@/lib/auth/session";
-import { adminPaths, workPaths } from "@/lib/paths";
+import { workPaths } from "@/lib/paths";
 import { dailyMenuService, toMenuDateKey } from "@/lib/services/daily-menu";
 
 export const dynamic = "force-dynamic";
@@ -37,13 +38,13 @@ export default async function HomePage() {
   const [user, todayMenu] = await Promise.all([getCurrentUser(), dailyMenuService.getMenu(today)]);
   const staffHref = !user
     ? workPaths.login
-    : (user.role === "manager" || user.role === "admin")
-      ? adminPaths.adminMenu
+    : isManagerRole(user.role)
+      ? workPaths.schedule
       : workPaths.employees;
   const staffLabel = !user
     ? "Vstup do worku"
-    : (user.role === "manager" || user.role === "admin")
-      ? "Vstup do adminu"
+    : isManagerRole(user.role)
+      ? "Vstup do worku"
       : "Pokračovat do worku";
 
   return (

@@ -9,13 +9,13 @@ import {
 } from "@/lib/actions";
 import { requireRoles } from "@/lib/auth/rbac";
 import { APP_ROLES, roleLabels } from "@/lib/constants";
-import { adminPaths } from "@/lib/paths";
+import { workPaths } from "@/lib/paths";
 import { getLocationsCached, getUsersCached } from "@/lib/services/cached-reads";
 
 export default async function AdminPeoplePage() {
   const admin = await requireRoles(["admin"], {
-    loginPath: adminPaths.login,
-    fallbackPath: adminPaths.adminMenu,
+    loginPath: workPaths.login,
+    fallbackPath: workPaths.schedule,
   });
   const [users, locations] = await Promise.all([getUsersCached(), getLocationsCached()]);
 

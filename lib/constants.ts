@@ -1,6 +1,6 @@
 import type { AppRole, AvailabilityStatus, EventType, ShiftType, StaffRole } from "@/types/models";
 
-export const APP_ROLES: AppRole[] = ["brigadnik", "manager", "admin"];
+export const APP_ROLES: AppRole[] = ["brigadnik", "manager", "admin", "superadmin"];
 export const STAFF_ROLES: StaffRole[] = ["service", "bar", "kitchen", "runner"];
 export const SHIFT_TYPES: ShiftType[] = ["restaurant", "wedding", "event"];
 export const EVENT_TYPES: EventType[] = ["wedding", "event"];
@@ -14,6 +14,7 @@ export const roleLabels: Record<AppRole, string> = {
   brigadnik: "Brigádník",
   manager: "Manažer",
   admin: "Admin",
+  superadmin: "Super admin",
 };
 
 export const staffRoleLabels: Record<StaffRole, string> = {

@@ -4,6 +4,16 @@ export const workPaths = {
   employees: "/work/employees",
   employeesMy: "/work/employees/my",
   employeeDay: (date: string) => `/work/employees/day/${date}`,
+  schedule: "/work/schedule",
+  scheduleWithParams: (params: { date?: string; tab?: "calendar" | "admin" } = {}) => {
+    const search = new URLSearchParams();
+    if (params.tab) search.set("tab", params.tab);
+    if (params.date) search.set("date", params.date);
+    const query = search.toString();
+    return query ? `/work/schedule?${query}` : "/work/schedule";
+  },
+  events: "/work/events",
+  people: "/work/people",
 } as const;
 
 export const adminPaths = {
@@ -24,9 +34,9 @@ export const adminPaths = {
 
 export const staffPaths = {
   ...workPaths,
-  adminSchedule: adminPaths.adminSchedule,
-  adminScheduleWithParams: adminPaths.adminScheduleWithParams,
-  adminEvents: adminPaths.adminEvents,
-  adminPeople: adminPaths.adminPeople,
+  adminSchedule: workPaths.schedule,
+  adminScheduleWithParams: workPaths.scheduleWithParams,
+  adminEvents: workPaths.events,
+  adminPeople: workPaths.people,
   adminMenu: adminPaths.adminMenu,
 } as const;

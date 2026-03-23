@@ -11,6 +11,7 @@ import {
   removeAssignmentAction,
   updateShiftAction,
 } from "@/lib/actions";
+import { canUseWorkRole, isManagerRole } from "@/lib/auth/role-access";
 import { requireUser } from "@/lib/auth/rbac";
 import { SHIFT_TYPES, shiftTypeLabels } from "@/lib/constants";
 import { staffPaths } from "@/lib/paths";
@@ -33,9 +34,9 @@ export default async function DayPage({ params }: Props) {
   ]);
   const locationMap = new Map(locations.map((l) => [l.id, l]));
   const dayEvents = events;
-  const canManageAssignments = user.role === "manager" || user.role === "admin";
+  const canManageAssignments = isManagerRole(user.role);
   const canManageShifts = canManageAssignments;
-  const canSelfAssign = user.role === "brigadnik" || user.role === "admin";
+  const canSelfAssign = canUseWorkRole(user.role);
 
   return (
     <div className="stack gap-lg">
@@ -49,9 +50,9 @@ export default async function DayPage({ params }: Props) {
             <AppLink className="button ghost" href={staffPaths.employees}>
               Zpět na kalendář
             </AppLink>
-            {["manager", "admin"].includes(user.role) ? (
+            {isManagerRole(user.role) ? (
               <AppLink className="button" href={staffPaths.adminScheduleWithParams({ date })}>
-                Otevřít admin den
+                Otevřít správu dne
               </AppLink>
             ) : null}
           </div>

@@ -5,7 +5,7 @@ import { AppLink } from "@/components/app-link";
 import { staffPaths } from "@/lib/paths";
 
 type NavItem = { href: string; label: string };
-type AppRole = "brigadnik" | "manager" | "admin";
+type AppRole = "brigadnik" | "manager" | "admin" | "superadmin";
 type UserRecordLike = {
   name: string;
   role: AppRole;

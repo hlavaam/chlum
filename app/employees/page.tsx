@@ -1,5 +1,6 @@
 import { AppLink } from "@/components/app-link";
 import { ShiftAssignmentButton } from "@/components/shift-assignment-button";
+import { canUseWorkRole } from "@/lib/auth/role-access";
 import { requireUser } from "@/lib/auth/rbac";
 import { shiftTypeLabels } from "@/lib/constants";
 import { staffPaths } from "@/lib/paths";
@@ -98,7 +99,7 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
     month: "long",
     year: "numeric",
   }).format(view === "month" ? startOfMonth(anchor) : anchor);
-  const canSelfAssign = user.role === "brigadnik" || user.role === "admin";
+  const canSelfAssign = canUseWorkRole(user.role);
   const visibleLocationIds = [...new Set(
     days.flatMap((day) => (summaryMap.get(day)?.shifts ?? []).map((shift) => shift.locationId)),
   )].filter((id) => locationMap.has(id));

@@ -5,6 +5,7 @@ import { revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
+import { canUseWorkRole, isManagerRole } from "@/lib/auth/role-access";
 import { APP_ROLES, AVAILABILITY_STATUSES, EVENT_TYPES, SHIFT_TYPES, STAFF_ROLES } from "@/lib/constants";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { requireRoles, requireUser } from "@/lib/auth/rbac";
@@ -201,18 +202,18 @@ export async function loginWorkAction(formData: FormData) {
     redirect(`${workPaths.login}?error=1`);
   }
   await setSessionCookie(user.id);
-  redirect(workPaths.employees);
+  redirect(isManagerRole(user.role) ? workPaths.schedule : workPaths.employees);
 }
 
 export async function loginAdminAction(formData: FormData) {
   const email = getString(formData, "email");
   const password = getString(formData, "password");
   const user = await usersService.findByEmail(email);
-  if (!user || !verifyPassword(password, user.passwordHash) || !user.active || (user.role !== "manager" && user.role !== "admin")) {
+  if (!user || !verifyPassword(password, user.passwordHash) || !user.active || !isManagerRole(user.role)) {
     redirect(`${adminPaths.login}?error=1`);
   }
   await setSessionCookie(user.id);
-  redirect(adminPaths.adminMenu);
+  redirect(workPaths.schedule);
 }
 
 export async function logoutAction() {
@@ -222,7 +223,7 @@ export async function logoutAction() {
 
 export async function signupShiftAction(formData: FormData) {
   const user = await requireUser();
-  if (user.role !== "brigadnik" && user.role !== "admin") {
+  if (!canUseWorkRole(user.role)) {
     redirect(staffPaths.adminSchedule);
   }
   const shiftId = getString(formData, "shiftId");
@@ -237,7 +238,7 @@ export async function signupShiftAction(formData: FormData) {
 
 export async function unassignShiftAction(formData: FormData) {
   const user = await requireUser();
-  if (user.role !== "brigadnik" && user.role !== "admin") {
+  if (!canUseWorkRole(user.role)) {
     redirect(staffPaths.adminSchedule);
   }
   const shiftId = getString(formData, "shiftId");

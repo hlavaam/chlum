@@ -15,23 +15,23 @@ export const resourceServices = {
 
 export const resourcePolicies: Record<ResourceName, { read: AppRole[]; write: AppRole[] }> = {
   users: {
-    read: ["admin"],
-    write: ["admin"],
+    read: ["admin", "superadmin"],
+    write: ["admin", "superadmin"],
   },
   locations: {
-    read: ["brigadnik", "manager", "admin"],
-    write: ["admin"],
+    read: ["brigadnik", "manager", "admin", "superadmin"],
+    write: ["admin", "superadmin"],
   },
   events: {
-    read: ["brigadnik", "manager", "admin"],
-    write: ["manager", "admin"],
+    read: ["brigadnik", "manager", "admin", "superadmin"],
+    write: ["manager", "admin", "superadmin"],
   },
   shifts: {
-    read: ["brigadnik", "manager", "admin"],
-    write: ["manager", "admin"],
+    read: ["brigadnik", "manager", "admin", "superadmin"],
+    write: ["manager", "admin", "superadmin"],
   },
   assignments: {
-    read: ["manager", "admin"],
-    write: ["manager", "admin"],
+    read: ["manager", "admin", "superadmin"],
+    write: ["manager", "admin", "superadmin"],
   },
 };

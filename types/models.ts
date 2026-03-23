@@ -1,4 +1,4 @@
-export type AppRole = "brigadnik" | "manager" | "admin";
+export type AppRole = "brigadnik" | "manager" | "admin" | "superadmin";
 export type ShiftType = "restaurant" | "wedding" | "event";
 export type EventType = "wedding" | "event";
 export type StaffRole = "service" | "bar" | "kitchen" | "runner";

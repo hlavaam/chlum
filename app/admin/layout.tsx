@@ -1,17 +1,18 @@
 import { AppShell } from "@/components/app-shell";
+import { isAdminRole, isManagerRole } from "@/lib/auth/role-access";
 import { getCurrentUser } from "@/lib/auth/session";
 import { adminPaths, workPaths } from "@/lib/paths";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "manager" && user.role !== "admin")) {
+  if (!user || !isManagerRole(user.role)) {
     return <>{children}</>;
   }
   const nav = [
     { href: adminPaths.adminMenu, label: "Jídelák" },
     { href: adminPaths.adminSchedule, label: "Směny" },
     { href: adminPaths.adminEvents, label: "Eventy" },
-    ...(user.role === "admin" ? [{ href: adminPaths.adminPeople, label: "Lidé & pobočky" }] : []),
+    ...(isAdminRole(user.role) ? [{ href: adminPaths.adminPeople, label: "Lidé & pobočky" }] : []),
     { href: workPaths.employees, label: "Work" },
   ];
 

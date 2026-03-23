@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 
 import { loginAdminAction } from "@/lib/actions";
+import { isManagerRole } from "@/lib/auth/role-access";
 import { getCurrentUser } from "@/lib/auth/session";
-import { adminPaths, workPaths } from "@/lib/paths";
+import { workPaths } from "@/lib/paths";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -14,8 +15,8 @@ function readString(value: string | string[] | undefined) {
 
 export default async function AdminLoginPage({ searchParams }: Props) {
   const user = await getCurrentUser();
-  if (user?.role === "manager" || user?.role === "admin") {
-    redirect(adminPaths.adminMenu);
+  if (user && isManagerRole(user.role)) {
+    redirect(workPaths.schedule);
   }
   if (user?.role === "brigadnik") {
     redirect(workPaths.employees);
