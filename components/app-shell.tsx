@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { AppLink } from "@/components/app-link";
+import { staffPaths } from "@/lib/paths";
 
 type NavItem = { href: string; label: string };
 type AppRole = "brigadnik" | "manager" | "admin";
@@ -28,7 +29,7 @@ export function AppShell({ title: _title, subtitle, user, nav, children }: AppSh
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    router.push(staffPaths.login);
     router.refresh();
   }
 

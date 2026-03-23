@@ -13,6 +13,7 @@ import {
 } from "@/lib/actions";
 import { requireUser } from "@/lib/auth/rbac";
 import { SHIFT_TYPES, shiftTypeLabels } from "@/lib/constants";
+import { staffPaths } from "@/lib/paths";
 import { getDayDetailsCached, getEventsForDateCached, getLocationsCached } from "@/lib/services/cached-reads";
 import { formatCzDate, formatTimeRange } from "@/lib/utils";
 
@@ -45,11 +46,11 @@ export default async function DayPage({ params }: Props) {
             <h2>{formatCzDate(date)}</h2>
           </div>
           <div className="row gap-sm">
-            <AppLink className="button ghost" href="/employees">
+            <AppLink className="button ghost" href={staffPaths.employees}>
               Zpět na kalendář
             </AppLink>
             {["manager", "admin"].includes(user.role) ? (
-              <AppLink className="button" href={`/admin/schedule?date=${date}`}>
+              <AppLink className="button" href={staffPaths.adminScheduleWithParams({ date })}>
                 Otevřít admin den
               </AppLink>
             ) : null}
@@ -82,7 +83,7 @@ export default async function DayPage({ params }: Props) {
             <summary className="button summary-button">Přidat směnu</summary>
             <form action={createShiftAction} className="grid-form">
               <input type="hidden" name="date" value={date} />
-              <input type="hidden" name="redirectTo" value={`/employees/day/${date}`} />
+              <input type="hidden" name="redirectTo" value={staffPaths.employeeDay(date)} />
               <label>
                 Pobočka
                 <select name="locationId" required defaultValue={locations[0]?.id ?? ""}>
@@ -183,7 +184,7 @@ export default async function DayPage({ params }: Props) {
                   <summary className="button ghost summary-button">Upravit směnu</summary>
                   <form action={updateShiftAction} className="grid-form">
                     <input type="hidden" name="shiftId" value={shift.id} />
-                    <input type="hidden" name="redirectTo" value={`/employees/day/${date}`} />
+                    <input type="hidden" name="redirectTo" value={staffPaths.employeeDay(date)} />
                     <label>
                       Datum
                       <input type="date" name="date" defaultValue={shift.date} required />
@@ -264,7 +265,7 @@ export default async function DayPage({ params }: Props) {
                                 <form action={removeAssignmentAction} className="row gap-sm">
                                   <input type="hidden" name="assignmentId" value={assignment.id} />
                                   <input type="hidden" name="date" value={date} />
-                                  <input type="hidden" name="redirectTo" value={`/employees/day/${date}`} />
+                                  <input type="hidden" name="redirectTo" value={staffPaths.employeeDay(date)} />
                                   <button type="submit" className="button ghost danger animate-tap">
                                     Odebrat
                                   </button>
@@ -284,7 +285,7 @@ export default async function DayPage({ params }: Props) {
                   <form action={deleteShiftAction}>
                     <input type="hidden" name="shiftId" value={shift.id} />
                     <input type="hidden" name="date" value={date} />
-                    <input type="hidden" name="redirectTo" value={`/employees/day/${date}`} />
+                    <input type="hidden" name="redirectTo" value={staffPaths.employeeDay(date)} />
                     <ConfirmSubmitButton
                       type="submit"
                       className="button ghost danger small"

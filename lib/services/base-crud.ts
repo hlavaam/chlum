@@ -1,5 +1,5 @@
 import type { BaseRecord } from "@/types/models";
-import type { Repository } from "@/lib/storage/json-repository";
+import type { Repository } from "@/lib/storage/repository";
 
 export interface CrudService<T extends BaseRecord> {
   loadAll(): Promise<T[]>;

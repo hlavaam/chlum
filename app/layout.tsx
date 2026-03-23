@@ -1,12 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PerfClientMetrics } from "@/components/perf-client-metrics";
 
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Chlum • Brigádníci",
-  description: "MVP plánování brigádníků pro restauraci a eventy",
+  title: "Vyskeř Dvůr",
+  description: "Restaurace, penzion a interní systém brigádníků na jednom webu.",
 };
 
 export const viewport: Viewport = {
@@ -21,7 +20,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <PerfClientMetrics />
-        <SpeedInsights />
       </body>
     </html>
   );

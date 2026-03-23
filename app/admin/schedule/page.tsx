@@ -12,6 +12,7 @@ import {
 } from "@/lib/actions";
 import { requireRoles } from "@/lib/auth/rbac";
 import { SHIFT_TYPES, shiftTypeLabels } from "@/lib/constants";
+import { staffPaths } from "@/lib/paths";
 import { assignmentsService } from "@/lib/services/assignments";
 import { getDayDetailsCached, getLocationsCached, getUsersCached } from "@/lib/services/cached-reads";
 import { shiftsService } from "@/lib/services/shifts";
@@ -59,7 +60,7 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
             <h2>Provoz dne {date}</h2>
           </div>
           <div className="row gap-sm">
-            <AppLink className="button ghost" href={`/employees/day/${date}`}>
+            <AppLink className="button ghost" href={staffPaths.employeeDay(date)}>
               Náhled dne
             </AppLink>
             <a className="button" href="/api/admin/export/shifts">
@@ -71,13 +72,13 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
         <div className="row gap-sm wrap">
           <AppLink
             className={`button ${tab === "calendar" ? "" : "ghost"}`}
-            href={`/admin/schedule?tab=calendar&date=${date}`}
+            href={staffPaths.adminScheduleWithParams({ tab: "calendar", date })}
           >
             Kalendář + Presety
           </AppLink>
           <AppLink
             className={`button ${tab === "admin" ? "" : "ghost"}`}
-            href={`/admin/schedule?tab=admin&date=${date}`}
+            href={staffPaths.adminScheduleWithParams({ tab: "admin", date })}
           >
             Admin (obsazení)
           </AppLink>
@@ -243,7 +244,11 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
                   <summary className="subtle">Upravit / smazat směnu</summary>
                   <form action={updateShiftAction} className="grid-form">
                     <input type="hidden" name="shiftId" value={detail.shift.id} />
-                    <input type="hidden" name="redirectTo" value={`/admin/schedule?tab=admin&date=${date}`} />
+                    <input
+                      type="hidden"
+                      name="redirectTo"
+                      value={staffPaths.adminScheduleWithParams({ tab: "admin", date })}
+                    />
                     <label>
                       Datum
                       <input type="date" name="date" defaultValue={detail.shift.date} required />
@@ -300,7 +305,11 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
                   <form action={deleteShiftAction} className="row gap-sm wrap">
                     <input type="hidden" name="shiftId" value={detail.shift.id} />
                     <input type="hidden" name="date" value={detail.shift.date} />
-                    <input type="hidden" name="redirectTo" value={`/admin/schedule?tab=admin&date=${date}`} />
+                    <input
+                      type="hidden"
+                      name="redirectTo"
+                      value={staffPaths.adminScheduleWithParams({ tab: "admin", date })}
+                    />
                     <ConfirmSubmitButton
                       type="submit"
                       className="button ghost danger"
@@ -388,7 +397,11 @@ export default async function AdminSchedulePage({ searchParams }: Props) {
                           <form action={deleteShiftAction} className="row wrap admin-inline-form">
                             <input type="hidden" name="shiftId" value={shift.id} />
                             <input type="hidden" name="date" value={shift.date} />
-                            <input type="hidden" name="redirectTo" value={`/admin/schedule?tab=admin&date=${date}`} />
+                            <input
+                              type="hidden"
+                              name="redirectTo"
+                              value={staffPaths.adminScheduleWithParams({ tab: "admin", date })}
+                            />
                             <ConfirmSubmitButton
                               type="submit"
                               className="button ghost danger small"

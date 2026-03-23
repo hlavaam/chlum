@@ -2,6 +2,7 @@ import { AppLink } from "@/components/app-link";
 import { ShiftAssignmentButton } from "@/components/shift-assignment-button";
 import { requireUser } from "@/lib/auth/rbac";
 import { shiftTypeLabels } from "@/lib/constants";
+import { staffPaths } from "@/lib/paths";
 import { getCurrentUserDashboardSnapshot } from "@/lib/services/cached-reads";
 import { assignmentsService } from "@/lib/services/assignments";
 import { addDays, getMonthGrid, getWeekDays, parseDateKey, startOfMonth, toDateKey } from "@/lib/utils";
@@ -112,26 +113,26 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
           </div>
           <div className="calendar-controls">
             <div className="row gap-sm calendar-nav-row">
-              <AppLink className="button ghost" href={`/employees?view=${view}&date=${prevAnchor}`}>
+              <AppLink className="button ghost" href={`${staffPaths.employees}?view=${view}&date=${prevAnchor}`}>
                 Předchozí
               </AppLink>
-              <AppLink className="button ghost" href={`/employees?view=${view}&date=${toDateKey(new Date())}`}>
+              <AppLink className="button ghost" href={`${staffPaths.employees}?view=${view}&date=${toDateKey(new Date())}`}>
                 Dnes
               </AppLink>
-              <AppLink className="button ghost" href={`/employees?view=${view}&date=${nextAnchor}`}>
+              <AppLink className="button ghost" href={`${staffPaths.employees}?view=${view}&date=${nextAnchor}`}>
                 Další
               </AppLink>
             </div>
             <div className="view-slider" role="tablist" aria-label="Přepnutí zobrazení kalendáře">
               <AppLink
                 className={`view-slide ${view === "week" ? "active" : ""}`}
-                href={`/employees?view=week&date=${anchorDate}`}
+                href={`${staffPaths.employees}?view=week&date=${anchorDate}`}
               >
                 Týdenní přehled
               </AppLink>
               <AppLink
                 className={`view-slide ${view === "month" ? "active" : ""}`}
-                href={`/employees?view=month&date=${anchorDate}`}
+                href={`${staffPaths.employees}?view=month&date=${anchorDate}`}
               >
                 Měsíční přehled
               </AppLink>
@@ -200,7 +201,7 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
             >
               <div className="row between">
                 <strong>{dayDate.getDate()}.</strong>
-                <AppLink className="chip chip-button day-open-link" href={`/employees/day/${day}`}>
+                <AppLink className="chip chip-button day-open-link" href={staffPaths.employeeDay(day)}>
                   Detail dne
                 </AppLink>
               </div>

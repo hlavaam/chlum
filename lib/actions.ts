@@ -11,6 +11,7 @@ import { requireRoles, requireUser } from "@/lib/auth/rbac";
 import { assignmentsService } from "@/lib/services/assignments";
 import { eventsService } from "@/lib/services/events";
 import { locationsService } from "@/lib/services/locations";
+import { staffPaths } from "@/lib/paths";
 import { shiftsService } from "@/lib/services/shifts";
 import { usersService } from "@/lib/services/users";
 import type {
@@ -186,44 +187,44 @@ export async function loginAction(formData: FormData) {
   const password = getString(formData, "password");
   const user = await usersService.findByEmail(email);
   if (!user || !verifyPassword(password, user.passwordHash) || !user.active) {
-    redirect("/login?error=1");
+    redirect(`${staffPaths.login}?error=1`);
   }
   await setSessionCookie(user.id);
-  redirect("/employees");
+  redirect(staffPaths.employees);
 }
 
 export async function logoutAction() {
   await clearSessionCookie();
-  redirect("/login");
+  redirect(staffPaths.login);
 }
 
 export async function signupShiftAction(formData: FormData) {
   const user = await requireUser();
   if (user.role !== "brigadnik" && user.role !== "admin") {
-    redirect("/admin/schedule");
+    redirect(staffPaths.adminSchedule);
   }
   const shiftId = getString(formData, "shiftId");
   const date = getString(formData, "date");
   const role: StaffRole = user.preferredRoles[0] ?? "service";
   await shiftsService.signup(shiftId, user, role);
   revalidateDataTags("assignments", "shifts");
-  revalidatePath("/employees");
-  revalidatePath(`/employees/day/${date}`);
-  revalidatePath("/employees/my");
+  revalidatePath(staffPaths.employees);
+  revalidatePath(staffPaths.employeeDay(date));
+  revalidatePath(staffPaths.employeesMy);
 }
 
 export async function unassignShiftAction(formData: FormData) {
   const user = await requireUser();
   if (user.role !== "brigadnik" && user.role !== "admin") {
-    redirect("/admin/schedule");
+    redirect(staffPaths.adminSchedule);
   }
   const shiftId = getString(formData, "shiftId");
   const date = getString(formData, "date");
   await shiftsService.unassign(shiftId, user.id);
   revalidateDataTags("assignments", "shifts");
-  revalidatePath("/employees");
-  revalidatePath(`/employees/day/${date}`);
-  revalidatePath("/employees/my");
+  revalidatePath(staffPaths.employees);
+  revalidatePath(staffPaths.employeeDay(date));
+  revalidatePath(staffPaths.employeesMy);
 }
 
 export async function updateMyPreferencesAction(formData: FormData) {
@@ -233,8 +234,8 @@ export async function updateMyPreferencesAction(formData: FormData) {
   );
   await usersService.updatePreferences(user.id, roles);
   revalidateDataTags("users");
-  revalidatePath("/employees/my");
-  redirect("/employees/my");
+  revalidatePath(staffPaths.employeesMy);
+  redirect(staffPaths.employeesMy);
 }
 
 export async function updateAvailabilityAction(formData: FormData) {
@@ -242,12 +243,12 @@ export async function updateAvailabilityAction(formData: FormData) {
   const date = getString(formData, "date");
   const status = getString(formData, "status") as AvailabilityStatus;
   if (!date || !AVAILABILITY_STATUSES.includes(status)) {
-    redirect("/employees/my");
+    redirect(staffPaths.employeesMy);
   }
   await usersService.updateAvailability(user.id, date, status);
   revalidateDataTags("users");
-  revalidatePath("/employees/my");
-  redirect("/employees/my");
+  revalidatePath(staffPaths.employeesMy);
+  redirect(staffPaths.employeesMy);
 }
 
 export async function createShiftAction(formData: FormData) {
@@ -299,15 +300,15 @@ export async function createShiftAction(formData: FormData) {
     }
   }
   revalidateDataTags("shifts");
-  revalidatePath("/admin/schedule");
-  revalidatePath("/employees");
-  redirectBack(formData, `/admin/schedule?tab=calendar&date=${dateFrom}`);
+  revalidatePath(staffPaths.adminSchedule);
+  revalidatePath(staffPaths.employees);
+  redirectBack(formData, staffPaths.adminScheduleWithParams({ tab: "calendar", date: dateFrom }));
 }
 
 export async function createEventAction(formData: FormData) {
   await requireRoles(["manager", "admin"]);
   const type = getString(formData, "type") as EventType;
-  if (!EVENT_TYPES.includes(type)) redirect("/admin/events");
+  if (!EVENT_TYPES.includes(type)) redirect(staffPaths.adminEvents);
   const startTime = normalizeTimeInput(getString(formData, "startTime")) || "12:00";
   const endTime = isFlexibleEndTime(formData)
     ? "dle situace"
@@ -324,61 +325,61 @@ export async function createEventAction(formData: FormData) {
     notes: getString(formData, "notes"),
   });
   revalidateDataTags("events", "shifts");
-  revalidatePath("/admin/events");
-  revalidatePath("/admin/schedule");
-  revalidatePath("/employees");
-  redirect("/admin/events");
+  revalidatePath(staffPaths.adminEvents);
+  revalidatePath(staffPaths.adminSchedule);
+  revalidatePath(staffPaths.employees);
+  redirect(staffPaths.adminEvents);
 }
 
 export async function deleteEventAction(formData: FormData) {
   await requireRoles(["manager", "admin"]);
   const eventId = getString(formData, "eventId");
   const date = getString(formData, "date");
-  if (!eventId) redirect("/admin/events");
+  if (!eventId) redirect(staffPaths.adminEvents);
   await eventsService.delete(eventId);
   revalidateDataTags("events", "shifts", "assignments");
-  revalidatePath("/admin/events");
-  revalidatePath("/admin/schedule");
-  revalidatePath("/employees");
-  if (date) revalidatePath(`/employees/day/${date}`);
-  redirectBack(formData, "/admin/events");
+  revalidatePath(staffPaths.adminEvents);
+  revalidatePath(staffPaths.adminSchedule);
+  revalidatePath(staffPaths.employees);
+  if (date) revalidatePath(staffPaths.employeeDay(date));
+  redirectBack(formData, staffPaths.adminEvents);
 }
 
 export async function toggleShiftApprovalAction(formData: FormData) {
   await requireRoles(["manager", "admin"]);
   const shiftId = getString(formData, "shiftId");
   const shift = await shiftsService.findById(shiftId);
-  if (!shift) redirect("/admin/schedule");
+  if (!shift) redirect(staffPaths.adminSchedule);
   await shiftsService.update(shiftId, { requiresApproval: !shift.requiresApproval });
   revalidateDataTags("shifts");
-  revalidatePath("/admin/schedule");
-  revalidatePath("/employees");
-  redirect("/admin/schedule");
+  revalidatePath(staffPaths.adminSchedule);
+  revalidatePath(staffPaths.employees);
+  redirect(staffPaths.adminSchedule);
 }
 
 export async function updateAssignmentStatusAction(formData: FormData) {
   await requireRoles(["manager", "admin"]);
   const assignmentId = getString(formData, "assignmentId");
   const status = getString(formData, "status");
-  if (status !== "confirmed" && status !== "pending") redirect("/admin/schedule");
+  if (status !== "confirmed" && status !== "pending") redirect(staffPaths.adminSchedule);
   await assignmentsService.setStatus(assignmentId, status);
   revalidateDataTags("assignments");
-  revalidatePath("/admin/schedule");
-  revalidatePath("/employees");
-  redirect("/admin/schedule");
+  revalidatePath(staffPaths.adminSchedule);
+  revalidatePath(staffPaths.employees);
+  redirect(staffPaths.adminSchedule);
 }
 
 export async function removeAssignmentAction(formData: FormData) {
   await requireRoles(["manager", "admin"]);
   const assignmentId = getString(formData, "assignmentId");
   const date = getString(formData, "date");
-  if (!assignmentId) redirect("/admin/schedule");
+  if (!assignmentId) redirect(staffPaths.adminSchedule);
   await assignmentsService.delete(assignmentId);
   revalidateDataTags("assignments");
-  revalidatePath("/admin/schedule");
-  revalidatePath("/employees");
-  if (date) revalidatePath(`/employees/day/${date}`);
-  redirectBack(formData, date ? `/employees/day/${date}` : "/employees");
+  revalidatePath(staffPaths.adminSchedule);
+  revalidatePath(staffPaths.employees);
+  if (date) revalidatePath(staffPaths.employeeDay(date));
+  redirectBack(formData, date ? staffPaths.employeeDay(date) : staffPaths.employees);
 }
 
 export async function manualAssignAction(formData: FormData) {
@@ -386,19 +387,19 @@ export async function manualAssignAction(formData: FormData) {
   const shiftId = getString(formData, "shiftId");
   const userId = getString(formData, "userId");
   const user = await usersService.findById(userId);
-  if (!user) redirect("/admin/schedule");
+  if (!user) redirect(staffPaths.adminSchedule);
   await shiftsService.signup(shiftId, user, user.preferredRoles[0] ?? "service", "confirmed");
   revalidateDataTags("assignments", "shifts");
-  revalidatePath("/admin/schedule");
-  revalidatePath("/employees");
-  redirect("/admin/schedule");
+  revalidatePath(staffPaths.adminSchedule);
+  revalidatePath(staffPaths.employees);
+  redirect(staffPaths.adminSchedule);
 }
 
 export async function updateShiftAction(formData: FormData) {
   await requireRoles(["manager", "admin"]);
   const shiftId = getString(formData, "shiftId");
   const shift = await shiftsService.findById(shiftId);
-  if (!shift) redirect("/admin/schedule");
+  if (!shift) redirect(staffPaths.adminSchedule);
 
   const nextDate = getString(formData, "date") || shift.date;
   const rawType = getString(formData, "type") as ShiftType;
@@ -424,11 +425,11 @@ export async function updateShiftAction(formData: FormData) {
   });
 
   revalidateDataTags("shifts");
-  revalidatePath("/admin/schedule");
-  revalidatePath("/employees");
-  revalidatePath(`/employees/day/${shift.date}`);
-  revalidatePath(`/employees/day/${nextDate}`);
-  redirectBack(formData, `/admin/schedule?tab=admin&date=${nextDate}`);
+  revalidatePath(staffPaths.adminSchedule);
+  revalidatePath(staffPaths.employees);
+  revalidatePath(staffPaths.employeeDay(shift.date));
+  revalidatePath(staffPaths.employeeDay(nextDate));
+  redirectBack(formData, staffPaths.adminScheduleWithParams({ tab: "admin", date: nextDate }));
 }
 
 export async function deleteShiftAction(formData: FormData) {
@@ -437,10 +438,10 @@ export async function deleteShiftAction(formData: FormData) {
   const date = getString(formData, "date");
   await shiftsService.deleteCascade(shiftId);
   revalidateDataTags("shifts", "assignments");
-  revalidatePath("/admin/schedule");
-  revalidatePath("/employees");
-  if (date) revalidatePath(`/employees/day/${date}`);
-  redirectBack(formData, `/admin/schedule?tab=admin&date=${date || ""}`);
+  revalidatePath(staffPaths.adminSchedule);
+  revalidatePath(staffPaths.employees);
+  if (date) revalidatePath(staffPaths.employeeDay(date));
+  redirectBack(formData, staffPaths.adminScheduleWithParams({ tab: "admin", date: date || undefined }));
 }
 
 export async function createLocationAction(formData: FormData) {
@@ -451,32 +452,32 @@ export async function createLocationAction(formData: FormData) {
     address: getString(formData, "address"),
   });
   revalidateDataTags("locations");
-  revalidatePath("/admin/people");
-  revalidatePath("/admin/events");
-  revalidatePath("/admin/schedule");
-  redirect("/admin/people");
+  revalidatePath(staffPaths.adminPeople);
+  revalidatePath(staffPaths.adminEvents);
+  revalidatePath(staffPaths.adminSchedule);
+  redirect(staffPaths.adminPeople);
 }
 
 export async function updateLocationAction(formData: FormData) {
   await requireRoles(["admin"]);
   const locationId = getString(formData, "locationId");
-  if (!locationId) redirect("/admin/people");
+  if (!locationId) redirect(staffPaths.adminPeople);
   await locationsService.update(locationId, {
     name: getString(formData, "name"),
     code: getString(formData, "code"),
     address: getString(formData, "address"),
   });
   revalidateDataTags("locations");
-  revalidatePath("/admin/people");
-  revalidatePath("/admin/events");
-  revalidatePath("/admin/schedule");
-  redirect("/admin/people");
+  revalidatePath(staffPaths.adminPeople);
+  revalidatePath(staffPaths.adminEvents);
+  revalidatePath(staffPaths.adminSchedule);
+  redirect(staffPaths.adminPeople);
 }
 
 export async function createUserAction(formData: FormData) {
   await requireRoles(["admin"]);
   const role = getString(formData, "role") as AppRole;
-  if (!APP_ROLES.includes(role)) redirect("/admin/people");
+  if (!APP_ROLES.includes(role)) redirect(staffPaths.adminPeople);
   const locationIds = getStringArray(formData, "locationIds");
   const password = getString(formData, "password");
   await usersService.create({
@@ -490,41 +491,41 @@ export async function createUserAction(formData: FormData) {
     availabilityByDate: {},
   });
   revalidateDataTags("users");
-  revalidatePath("/admin/people");
-  redirect("/admin/people");
+  revalidatePath(staffPaths.adminPeople);
+  redirect(staffPaths.adminPeople);
 }
 
 export async function updateUserRoleAction(formData: FormData) {
   await requireRoles(["admin"]);
   const userId = getString(formData, "userId");
   const role = getString(formData, "role") as AppRole;
-  if (!APP_ROLES.includes(role)) redirect("/admin/people");
+  if (!APP_ROLES.includes(role)) redirect(staffPaths.adminPeople);
   await usersService.update(userId, { role });
   revalidateDataTags("users");
-  revalidatePath("/admin/people");
-  redirect("/admin/people");
+  revalidatePath(staffPaths.adminPeople);
+  redirect(staffPaths.adminPeople);
 }
 
 export async function updateUserPasswordAction(formData: FormData) {
   await requireRoles(["admin"]);
   const userId = getString(formData, "userId");
   const password = getString(formData, "password");
-  if (!userId || password.length < 6) redirect("/admin/people");
+  if (!userId || password.length < 6) redirect(staffPaths.adminPeople);
   await usersService.update(userId, { passwordHash: hashPassword(password) });
   revalidateDataTags("users");
-  revalidatePath("/admin/people");
-  redirect("/admin/people");
+  revalidatePath(staffPaths.adminPeople);
+  redirect(staffPaths.adminPeople);
 }
 
 export async function deleteUserAction(formData: FormData) {
   const admin = await requireRoles(["admin"]);
   const userId = getString(formData, "userId");
-  if (!userId || userId === admin.id) redirect("/admin/people");
+  if (!userId || userId === admin.id) redirect(staffPaths.adminPeople);
   await assignmentsService.deleteForUser(userId);
   await usersService.delete(userId);
   revalidateDataTags("users", "assignments");
-  revalidatePath("/admin/people");
-  revalidatePath("/admin/schedule");
-  revalidatePath("/employees");
-  redirect("/admin/people");
+  revalidatePath(staffPaths.adminPeople);
+  revalidatePath(staffPaths.adminSchedule);
+  revalidatePath(staffPaths.employees);
+  redirect(staffPaths.adminPeople);
 }

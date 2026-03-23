@@ -1,14 +1,16 @@
 import { AppShell } from "@/components/app-shell";
 import { requireRoles } from "@/lib/auth/rbac";
+import { staffPaths } from "@/lib/paths";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await requireRoles(["manager", "admin"]);
   const nav = [
-    { href: "/employees", label: "Kalendář" },
-    ...(user.role === "admin" ? [{ href: "/employees/my", label: "Moje směny" }] : []),
-    { href: "/admin/schedule", label: "Admin" },
-    { href: "/admin/events", label: "Eventy" },
-    ...(user.role === "admin" ? [{ href: "/admin/people", label: "Lidé & pobočky" }] : []),
+    { href: staffPaths.employees, label: "Kalendář" },
+    ...(user.role === "admin" ? [{ href: staffPaths.employeesMy, label: "Moje směny" }] : []),
+    { href: staffPaths.adminSchedule, label: "Admin" },
+    { href: staffPaths.adminEvents, label: "Eventy" },
+    { href: staffPaths.adminMenu, label: "Denní menu" },
+    ...(user.role === "admin" ? [{ href: staffPaths.adminPeople, label: "Lidé & pobočky" }] : []),
   ];
 
   return (

@@ -2,9 +2,9 @@ import { randomUUID } from "crypto";
 
 import type { BaseRecord } from "@/types/models";
 import { startPerfTrace } from "@/lib/perf";
-import { nowIso } from "@/lib/utils";
-import type { Repository } from "@/lib/storage/json-repository";
 import { readTableFile } from "@/lib/storage/file-db";
+import type { Repository } from "@/lib/storage/repository";
+import { nowIso } from "@/lib/utils";
 import { getPostgresPool } from "@/lib/storage/postgres-db";
 
 type QueryRow<T extends BaseRecord> = {

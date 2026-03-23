@@ -1,7 +1,11 @@
 .next
+.open-next
+.wrangler
 node_modules
 .DS_Store
 *.log
+.dev.vars
+cloudflare-env.d.ts
 
 # Local env files (keep .env.example tracked)
 .env.local

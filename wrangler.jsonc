@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "chlum",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-03-23",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": ".open-next/assets"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "chlum",
+      "database_id": "420e6492-8eed-4806-baf9-4fe7ed44fa47"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import { FlexibleEndTimeFields } from "@/components/flexible-end-time-fields";
 import { createEventAction, deleteEventAction } from "@/lib/actions";
 import { requireRoles } from "@/lib/auth/rbac";
 import { eventTypeLabels } from "@/lib/constants";
+import { staffPaths } from "@/lib/paths";
 import { getEventsCached, getLocationsCached } from "@/lib/services/cached-reads";
 
 export default async function AdminEventsPage() {
@@ -93,7 +94,7 @@ export default async function AdminEventsPage() {
                       <form action={deleteEventAction} className="row wrap admin-inline-form">
                         <input type="hidden" name="eventId" value={event.id} />
                         <input type="hidden" name="date" value={event.date} />
-                        <input type="hidden" name="redirectTo" value="/admin/events" />
+                        <input type="hidden" name="redirectTo" value={staffPaths.adminEvents} />
                         <ConfirmSubmitButton
                           type="submit"
                           className="button ghost danger small"

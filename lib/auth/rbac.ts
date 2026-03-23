@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 
+import { staffPaths } from "@/lib/paths";
 import { getCurrentUser } from "@/lib/auth/session";
 import type { AppRole, UserRecord } from "@/types/models";
 
 export async function requireUser(): Promise<UserRecord> {
   const user = await getCurrentUser();
   if (!user) {
-    redirect("/login");
+    redirect(staffPaths.login);
   }
   return user;
 }
@@ -14,7 +15,7 @@ export async function requireUser(): Promise<UserRecord> {
 export async function requireRoles(roles: AppRole[]): Promise<UserRecord> {
   const user = await requireUser();
   if (!roles.includes(user.role)) {
-    redirect("/employees");
+    redirect(staffPaths.employees);
   }
   return user;
 }

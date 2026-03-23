@@ -5,6 +5,28 @@ export type StaffRole = "service" | "bar" | "kitchen" | "runner";
 export type AssignmentStatus = "confirmed" | "pending";
 export type AvailabilityStatus = "available" | "preferred" | "unavailable";
 
+export interface DailyMenuItem {
+  category: string;
+  name: string;
+  price: string;
+  allergens: string;
+}
+
+export interface DailyMenuDayRecord {
+  title: string;
+  note: string;
+  items: DailyMenuItem[];
+  updatedAt: string;
+}
+
+export interface DailyMenuRecord extends BaseRecord, DailyMenuDayRecord {
+  date: string;
+}
+
+export interface DailyMenuStore {
+  days: Record<string, DailyMenuDayRecord>;
+}
+
 export interface BaseRecord {
   id: string;
   createdAt: string;

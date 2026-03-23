@@ -1,6 +1,3 @@
-import { JsonRepository } from "@/lib/storage/json-repository";
-import { PostgresRepository } from "@/lib/storage/postgres-repository";
-import { hasDatabaseUrl, shouldFallbackToJsonStorage } from "@/lib/storage/postgres-db";
 import type {
   AssignmentRecord,
   BaseRecord,
@@ -9,67 +6,127 @@ import type {
   ShiftRecord,
   UserRecord,
 } from "@/types/models";
-import type { Repository } from "@/lib/storage/json-repository";
+import type { Repository } from "@/lib/storage/repository";
+import { getStorageBackend } from "@/lib/storage/storage-backend";
 
-const usePostgres = hasDatabaseUrl();
+async function createNodeRepository<T extends BaseRecord>(
+  resource: string,
+  filename: string,
+): Promise<Repository<T>> {
+  if (process.env.DATABASE_NEON_DATABASE_URL || process.env.DATABASE_URL) {
+    const [{ JsonRepository }, { PostgresRepository }, { shouldFallbackToJsonStorage }] = await Promise.all([
+      import("@/lib/storage/json-repository"),
+      import("@/lib/storage/postgres-repository"),
+      import("@/lib/storage/postgres-db"),
+    ]);
 
-class ResilientRepository<T extends BaseRecord> implements Repository<T> {
-  private readonly postgres: Repository<T>;
-  private readonly json: Repository<T>;
-  private fallbackToJson = false;
+    const postgres = new PostgresRepository<T>(resource, filename);
+    const json = new JsonRepository<T>(filename);
+    let fallbackToJson = false;
 
-  constructor(resource: string, filename: string) {
-    this.postgres = new PostgresRepository<T>(resource, filename);
-    this.json = new JsonRepository<T>(filename);
+    return {
+      async loadAll() {
+        if (fallbackToJson) return json.loadAll();
+        try {
+          return await postgres.loadAll();
+        } catch (error) {
+          if (!shouldFallbackToJsonStorage(error)) throw error;
+          fallbackToJson = true;
+          return json.loadAll();
+        }
+      },
+      async findById(id: string) {
+        if (fallbackToJson) return json.findById(id);
+        try {
+          return await postgres.findById(id);
+        } catch (error) {
+          if (!shouldFallbackToJsonStorage(error)) throw error;
+          fallbackToJson = true;
+          return json.findById(id);
+        }
+      },
+      async create(input) {
+        if (fallbackToJson) return json.create(input);
+        try {
+          return await postgres.create(input);
+        } catch (error) {
+          if (!shouldFallbackToJsonStorage(error)) throw error;
+          fallbackToJson = true;
+          return json.create(input);
+        }
+      },
+      async update(id: string, patch) {
+        if (fallbackToJson) return json.update(id, patch);
+        try {
+          return await postgres.update(id, patch);
+        } catch (error) {
+          if (!shouldFallbackToJsonStorage(error)) throw error;
+          fallbackToJson = true;
+          return json.update(id, patch);
+        }
+      },
+      async delete(id: string) {
+        if (fallbackToJson) return json.delete(id);
+        try {
+          return await postgres.delete(id);
+        } catch (error) {
+          if (!shouldFallbackToJsonStorage(error)) throw error;
+          fallbackToJson = true;
+          return json.delete(id);
+        }
+      },
+    };
   }
 
-  private async run<R>(operation: (repo: Repository<T>) => Promise<R>): Promise<R> {
-    if (this.fallbackToJson) {
-      return operation(this.json);
+  const { JsonRepository } = await import("@/lib/storage/json-repository");
+  return new JsonRepository<T>(filename);
+}
+
+export class AdaptiveRepository<T extends BaseRecord> implements Repository<T> {
+  private backendPromise: Promise<Repository<T>> | null = null;
+
+  constructor(
+    private readonly resource: string,
+    private readonly filename: string,
+  ) {}
+
+  private async getBackend(): Promise<Repository<T>> {
+    if (!this.backendPromise) {
+      this.backendPromise = (async () => {
+        const backend = await getStorageBackend();
+        if (backend === "d1") {
+          const { D1Repository } = await import("@/lib/storage/d1-repository");
+          return new D1Repository<T>(this.resource);
+        }
+        return createNodeRepository<T>(this.resource, this.filename);
+      })();
     }
-
-    try {
-      return await operation(this.postgres);
-    } catch (error) {
-      if (!shouldFallbackToJsonStorage(error)) throw error;
-      this.fallbackToJson = true;
-      return operation(this.json);
-    }
+    return this.backendPromise;
   }
 
-  loadAll() {
-    return this.run((repo) => repo.loadAll());
+  async loadAll() {
+    return (await this.getBackend()).loadAll();
   }
 
-  findById(id: string) {
-    return this.run((repo) => repo.findById(id));
+  async findById(id: string) {
+    return (await this.getBackend()).findById(id);
   }
 
-  create(input: Omit<T, keyof BaseRecord> & Partial<Pick<BaseRecord, "id">>) {
-    return this.run((repo) => repo.create(input));
+  async create(input: Omit<T, keyof BaseRecord> & Partial<Pick<BaseRecord, "id">>) {
+    return (await this.getBackend()).create(input);
   }
 
-  update(id: string, patch: Partial<Omit<T, keyof BaseRecord>>) {
-    return this.run((repo) => repo.update(id, patch));
+  async update(id: string, patch: Partial<Omit<T, keyof BaseRecord>>) {
+    return (await this.getBackend()).update(id, patch);
   }
 
-  delete(id: string) {
-    return this.run((repo) => repo.delete(id));
+  async delete(id: string) {
+    return (await this.getBackend()).delete(id);
   }
 }
 
-export const usersRepository = usePostgres
-  ? new ResilientRepository<UserRecord>("users", "users.json")
-  : new JsonRepository<UserRecord>("users.json");
-export const locationsRepository = usePostgres
-  ? new ResilientRepository<LocationRecord>("locations", "locations.json")
-  : new JsonRepository<LocationRecord>("locations.json");
-export const eventsRepository = usePostgres
-  ? new ResilientRepository<EventRecord>("events", "events.json")
-  : new JsonRepository<EventRecord>("events.json");
-export const shiftsRepository = usePostgres
-  ? new ResilientRepository<ShiftRecord>("shifts", "shifts.json")
-  : new JsonRepository<ShiftRecord>("shifts.json");
-export const assignmentsRepository = usePostgres
-  ? new ResilientRepository<AssignmentRecord>("assignments", "assignments.json")
-  : new JsonRepository<AssignmentRecord>("assignments.json");
+export const usersRepository = new AdaptiveRepository<UserRecord>("users", "users.json");
+export const locationsRepository = new AdaptiveRepository<LocationRecord>("locations", "locations.json");
+export const eventsRepository = new AdaptiveRepository<EventRecord>("events", "events.json");
+export const shiftsRepository = new AdaptiveRepository<ShiftRecord>("shifts", "shifts.json");
+export const assignmentsRepository = new AdaptiveRepository<AssignmentRecord>("assignments", "assignments.json");

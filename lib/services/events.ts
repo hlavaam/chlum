@@ -1,28 +1,22 @@
 import { BaseCrudService } from "@/lib/services/base-crud";
-import {
-  hasDatabaseUrl,
-  loadPostgresResourceByField,
-  loadPostgresResourceByFieldRange,
-} from "@/lib/storage/postgres-db";
 import { eventsRepository } from "@/lib/storage/repositories";
 import { shiftsService } from "@/lib/services/shifts";
+import { loadResourceByField, loadResourceByFieldRange } from "@/lib/storage/resource-queries";
 import type { EventRecord } from "@/types/models";
 
 class EventsService extends BaseCrudService<EventRecord> {
   async forDate(date: string) {
-    if (hasDatabaseUrl()) {
-      return loadPostgresResourceByField<EventRecord>("events", "date", date);
-    }
-    const all = await this.loadAll();
-    return all.filter((event) => event.date === date);
+    return loadResourceByField<EventRecord>("events", "date", date, () => this.loadAll());
   }
 
   async forDateRange(startDate: string, endDate: string) {
-    if (hasDatabaseUrl()) {
-      return loadPostgresResourceByFieldRange<EventRecord>("events", "date", startDate, endDate);
-    }
-    const all = await this.loadAll();
-    return all.filter((event) => event.date >= startDate && event.date <= endDate);
+    return loadResourceByFieldRange<EventRecord>(
+      "events",
+      "date",
+      startDate,
+      endDate,
+      () => this.loadAll(),
+    );
   }
 
   async create(input: Partial<EventRecord>): Promise<EventRecord> {
