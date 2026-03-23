@@ -1,1 +1,7 @@
-export { default } from "../../../admin/people/page";
+import { redirect } from "next/navigation";
+
+import { workPaths } from "@/lib/paths";
+
+export default function LegacyBrigadniciAdminPeoplePage() {
+  redirect(workPaths.people);
+}
