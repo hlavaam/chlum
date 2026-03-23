@@ -4,7 +4,7 @@ import { PerfClientMetrics } from "@/components/perf-client-metrics";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Vyskeř Dvůr",
+  title: "Restaurace Vyskeř",
   description: "Restaurace, penzion a interní systém brigádníků na jednom webu.",
 };
 

@@ -52,7 +52,7 @@ export default async function HomePage() {
         <div className="public-shell public-header-row">
           <a className="public-brand" href="#top">
             <span className="public-brand-mark">V</span>
-            <span>Vyskeř Dvůr</span>
+            <span>Restaurace Vyskeř</span>
           </a>
           <nav className="public-nav" aria-label="Hlavní navigace">
             <a href="#restaurace">Restaurace</a>
@@ -188,7 +188,7 @@ export default async function HomePage() {
         <div className="public-shell public-contact-grid">
           <article className="public-card stack">
             <p className="eyebrow">Kontakt</p>
-            <h2>Restaurace a Penzion Vyskeř</h2>
+            <h2>Restaurace Vyskeř</h2>
             <p>Vyskeř 24, 512 64 Vyskeř</p>
             <p>+420 777 123 456</p>
             <p>rezervace@vyskerdvur.cz</p>

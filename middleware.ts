@@ -19,9 +19,6 @@ export function middleware(request: NextRequest) {
   }
 
   if (pathname === MAINTENANCE_PATH) {
-    if (hasAccess) {
-      return NextResponse.redirect(new URL("/", request.url));
-    }
     return NextResponse.next();
   }
 
