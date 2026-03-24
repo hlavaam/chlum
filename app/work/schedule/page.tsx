@@ -18,12 +18,12 @@ import { assignmentsService } from "@/lib/services/assignments";
 import {
   getDayDetailsCached,
   getLocationsCached,
-  getUsersCached,
   getWeekRosterCached,
+  getUsersCached,
 } from "@/lib/services/cached-reads";
 import type { DayShiftView } from "@/lib/services/schedule";
 import { shiftsService } from "@/lib/services/shifts";
-import { endOfWeek, formatCzDate, getWeekDays, parseDateKey, startOfWeek, toDateKey } from "@/lib/utils";
+import { endOfWeek, formatCzDate, startOfWeek, toDateKey } from "@/lib/utils";
 import type { AssignmentRecord, ShiftRecord, UserRecord } from "@/types/models";
 import { WORK_SHIFT_PRESETS } from "@/lib/work-shift-presets";
 
@@ -48,10 +48,9 @@ async function WorkScheduleContent({ searchParams }: Props) {
   const params = await searchParams;
   const date = readString(params, "date") || toDateKey(new Date());
   const tab = readString(params, "tab") === "admin" ? "admin" : "calendar";
-  const anchor = parseDateKey(date);
+  const anchor = new Date(`${date}T00:00:00`);
   const weekStart = toDateKey(startOfWeek(anchor));
   const weekEnd = toDateKey(endOfWeek(anchor));
-  const weekDays = getWeekDays(anchor);
   const locationsPromise = getLocationsCached();
   const weekRosterPromise = getWeekRosterCached(weekStart, weekEnd);
   const emptyAdminData: [DayShiftView[], UserRecord[], ShiftRecord[], AssignmentRecord[]] = [[], [], [], []];
@@ -70,65 +69,57 @@ async function WorkScheduleContent({ searchParams }: Props) {
   ]);
   const locationMap = new Map(locations.map((l) => [l.id, l]));
   const pendingAssignments = assignments.filter((a) => a.status === "pending");
-  const weekRosterMap = new Map(weekRoster.map((day) => [day.date, day]));
 
   return (
     <div className="stack gap-lg">
       <section className="panel stack">
         <div className="row between wrap">
           <div>
-            <p className="eyebrow">Aktuální týden</p>
-            <h2>
-              Obsazení brigádníků {weekStart === weekEnd ? formatCzDate(weekStart) : `${formatCzDate(weekStart)} až ${formatCzDate(weekEnd)}`}
-            </h2>
+            <p className="eyebrow">Přehled týdne</p>
+            <h2>{formatCzDate(weekStart)} až {formatCzDate(weekEnd)}</h2>
           </div>
-          <p className="subtle tiny">Nahoře je vždy týden podle právě otevřeného dne v plánování.</p>
+          <p className="subtle tiny">Týdenní soupis brigádníků a provozu.</p>
         </div>
-
         <div className="calendar-grid week">
-          {weekDays.map((weekDate) => {
-            const day = weekRosterMap.get(weekDate);
-            return (
-              <article key={weekDate} className="day-card">
-                <div className="row between wrap">
-                  <strong>{formatCzDate(weekDate)}</strong>
-                  <AppLink className="chip chip-button day-open-link" href={workPaths.employeeDay(weekDate)}>
-                    Detail dne
-                  </AppLink>
-                </div>
-                {!day || day.locations.length === 0 ? (
-                  <p className="subtle tiny">Bez směny.</p>
-                ) : (
-                  day.locations.map((location) => (
-                    <div key={location.locationId} className="day-location-row">
+          {weekRoster.map((day) => (
+            <article key={day.date} className="day-card">
+              <div className="row between wrap">
+                <strong>{formatCzDate(day.date)}</strong>
+                <span className="badge neutral">
+                  {day.totalConfirmed} potvrzeno{day.totalPending ? ` + ${day.totalPending} čeká` : ""}
+                </span>
+              </div>
+              {day.locations.length === 0 ? (
+                <p className="subtle tiny">Bez směn.</p>
+              ) : (
+                <div className="stack">
+                  {day.locations.map((location) => (
+                    <div key={`${day.date}-${location.locationId}`} className="day-location-row">
                       <div className="day-location-main">
                         <p className="day-location-title">
                           <strong>{location.locationName}</strong>
                         </p>
-                        <p className="day-location-type">
-                          Potvrzeno {location.confirmedCount} / čeká {location.pendingCount}
-                        </p>
+                        {location.shifts.map((shift) => (
+                          <p key={shift.shiftId} className="subtle tiny">
+                            <AppLink className="schedule-inline-link" href={workPaths.employeeDay(day.date, shift.shiftId)}>
+                              {shift.startTime}–{shift.endTime} • {shiftTypeLabels[shift.type]}
+                            </AppLink>
+                          </p>
+                        ))}
                         {location.roleAssignments.map((roleAssignment) => (
                           <p key={`${location.locationId}-${roleAssignment.role}`} className="tiny">
                             <strong>{staffRoleLabels[roleAssignment.role]}:</strong>{" "}
                             {roleAssignment.confirmedUsers.length > 0 ? roleAssignment.confirmedUsers.join(", ") : "nikdo"}
-                            {roleAssignment.pendingUsers.length > 0
-                              ? ` • čeká: ${roleAssignment.pendingUsers.join(", ")}`
-                              : ""}
-                          </p>
-                        ))}
-                        {location.shifts.map((shift) => (
-                          <p key={shift.shiftId} className="subtle tiny">
-                            {shift.startTime}–{shift.endTime} • {shiftTypeLabels[shift.type]} • {shift.requiredRoleSummary}
+                            {roleAssignment.pendingUsers.length > 0 ? ` • čeká: ${roleAssignment.pendingUsers.join(", ")}` : ""}
                           </p>
                         ))}
                       </div>
                     </div>
-                  ))
-                )}
-              </article>
-            );
-          })}
+                  ))}
+                </div>
+              )}
+            </article>
+          ))}
         </div>
       </section>
 
@@ -294,6 +285,11 @@ async function WorkScheduleContent({ searchParams }: Props) {
                       </strong>{" "}
                       • {locationMap.get(detail.shift.locationId)?.name} • {shiftTypeLabels[detail.shift.type]}
                     </p>
+                    <p className="tiny">
+                      <AppLink className="schedule-inline-link" href={workPaths.employeeDay(detail.shift.date, detail.shift.id)}>
+                        Otevřít detail směny
+                      </AppLink>
+                    </p>
                     {detail.shift.notes ? <p className="subtle">Poznámka: {detail.shift.notes}</p> : null}
                     <p className="subtle">
                       Obsazení: {detail.occupancy.confirmed}/{detail.shift.minimumPeople}
@@ -448,6 +444,7 @@ async function WorkScheduleContent({ searchParams }: Props) {
                             <td data-label="Akce">
                               <form action={updateAssignmentStatusAction} className="row gap-sm wrap admin-inline-form">
                                 <input type="hidden" name="assignmentId" value={assignment.id} />
+                                <input type="hidden" name="redirectTo" value={workPaths.scheduleWithParams({ tab: "admin", date })} />
                                 <select name="status" defaultValue={assignment.status}>
                                   <option value="pending">Čeká</option>
                                   <option value="confirmed">Potvrzeno</option>
@@ -504,18 +501,23 @@ async function WorkScheduleContent({ searchParams }: Props) {
                         <td data-label="Approval">{shift.requiresApproval ? "ano" : "ne"}</td>
                         <td data-label="Poznámka">{shift.notes ?? ""}</td>
                         <td data-label="Akce">
-                          <form action={deleteShiftAction} className="row wrap admin-inline-form">
-                            <input type="hidden" name="shiftId" value={shift.id} />
-                            <input type="hidden" name="date" value={shift.date} />
-                            <input type="hidden" name="redirectTo" value={workPaths.scheduleWithParams({ tab: "admin", date })} />
-                            <ConfirmSubmitButton
-                              type="submit"
-                              className="button ghost danger small"
-                              confirmMessage="Smazat tuto směnu včetně přihlášek?"
-                            >
-                              Smazat
-                            </ConfirmSubmitButton>
-                          </form>
+                          <div className="stack gap-sm">
+                            <AppLink className="button ghost small" href={workPaths.employeeDay(shift.date, shift.id)}>
+                              Detail
+                            </AppLink>
+                            <form action={deleteShiftAction} className="row wrap admin-inline-form">
+                              <input type="hidden" name="shiftId" value={shift.id} />
+                              <input type="hidden" name="date" value={shift.date} />
+                              <input type="hidden" name="redirectTo" value={workPaths.scheduleWithParams({ tab: "admin", date })} />
+                              <ConfirmSubmitButton
+                                type="submit"
+                                className="button ghost danger small"
+                                confirmMessage="Smazat tuto směnu včetně přihlášek?"
+                              >
+                                Smazat
+                              </ConfirmSubmitButton>
+                            </form>
+                          </div>
                         </td>
                       </tr>
                     ))}

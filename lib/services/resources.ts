@@ -1,4 +1,5 @@
 import { assignmentsService } from "@/lib/services/assignments";
+import { baseAttendanceService } from "@/lib/services/base-attendance";
 import { calendarConnectionsService } from "@/lib/services/calendar-connections";
 import { calendarSyncsService } from "@/lib/services/calendar-syncs";
 import { eventsService } from "@/lib/services/events";
@@ -16,6 +17,7 @@ export const resourceServices = {
   shifts: shiftsService,
   shift_presets: shiftPresetsService,
   assignments: assignmentsService,
+  base_attendance: baseAttendanceService,
   invites: invitesService,
   calendar_connections: calendarConnectionsService,
   calendar_syncs: calendarSyncsService,
@@ -43,6 +45,10 @@ export const resourcePolicies: Record<ResourceName, { read: AppRole[]; write: Ap
     write: ["manager", "admin", "superadmin"],
   },
   assignments: {
+    read: ["manager", "admin", "superadmin"],
+    write: ["manager", "admin", "superadmin"],
+  },
+  base_attendance: {
     read: ["manager", "admin", "superadmin"],
     write: ["manager", "admin", "superadmin"],
   },

@@ -9,10 +9,20 @@ type AppRole = "brigadnik" | "manager" | "admin" | "superadmin";
 type UserRecordLike = {
   name: string;
   role: AppRole;
+  photoDataUrl?: string;
 };
 
 function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
+}
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 }
 
 interface AppShellProps {
@@ -21,7 +31,7 @@ interface AppShellProps {
   eyebrow?: string;
   logoutPath?: string;
   user: UserRecordLike;
-  nav: NavItem[];
+  nav: Array<NavItem & { badge?: number }>;
   children: React.ReactNode;
 }
 
@@ -40,10 +50,15 @@ export function AppShell({ title: _title, subtitle, eyebrow, logoutPath, user, n
       <header className="topbar">
         <div>
           <p className="eyebrow">{eyebrow ?? "Správa brigádníků"}</p>
-          <p className="topbar-description">{subtitle ?? "Měsíční a týdenní plán restaurace, svateb a eventů"}</p>
+          {subtitle ? <p className="topbar-description">{subtitle}</p> : null}
         </div>
         <div className="topbar-actions">
           <div className="user-chip">
+            {user.photoDataUrl ? (
+              <img className="user-chip-photo" src={user.photoDataUrl} alt={user.name} />
+            ) : (
+              <span className="user-chip-initials">{initials(user.name)}</span>
+            )}
             <strong>{user.name}</strong>
           </div>
           <button className="icon-button logout-icon-button" type="button" onClick={handleLogout} aria-label="Odhlásit">
@@ -76,7 +91,8 @@ export function AppShell({ title: _title, subtitle, eyebrow, logoutPath, user, n
             href={item.href}
             className={cx("tab", pathname === item.href && "active")}
           >
-            {item.label}
+            <span>{item.label}</span>
+            {item.badge && item.badge > 0 ? <span className="nav-badge">{item.badge}</span> : null}
           </AppLink>
         ))}
       </nav>
@@ -91,6 +107,7 @@ export function AppShell({ title: _title, subtitle, eyebrow, logoutPath, user, n
             className={cx("mobile-nav-link", pathname === item.href && "active")}
           >
             <span>{item.label}</span>
+            {item.badge && item.badge > 0 ? <span className="nav-badge">{item.badge}</span> : null}
           </AppLink>
         ))}
       </nav>

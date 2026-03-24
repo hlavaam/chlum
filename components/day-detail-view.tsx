@@ -9,6 +9,7 @@ import {
   createShiftAction,
   deleteShiftAction,
   removeAssignmentAction,
+  updateAssignmentStatusAction,
   updateShiftAction,
 } from "@/lib/actions";
 import { canUseWorkRole, isManagerRole } from "@/lib/auth/role-access";
@@ -24,6 +25,7 @@ type DayDetailViewProps = {
   redirectTo: string;
   closeHref?: string;
   embedded?: boolean;
+  selectedShiftId?: string | null;
 };
 
 function getRequiredCount(
@@ -45,7 +47,7 @@ function getAssignedCount(
   }>,
   role: (typeof STAFF_ROLES)[number],
 ) {
-  return assignments.filter((assignment) => assignment.staffRole === role).length;
+  return assignments.filter((assignment) => assignment.staffRole === role && assignment.status === "confirmed").length;
 }
 
 function getDisplayRoles(
@@ -61,7 +63,7 @@ function getDisplayRoles(
     : STAFF_ROLES.map((role) => ({ role, count: 0 }));
 }
 
-export async function DayDetailView({ date, user, redirectTo, closeHref, embedded = false }: DayDetailViewProps) {
+export async function DayDetailView({ date, user, redirectTo, closeHref, embedded = false, selectedShiftId = null }: DayDetailViewProps) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound();
 
   const [details, locations, events] = await Promise.all([
@@ -193,11 +195,17 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
           </div>
         ) : null}
 
-        {details.map(({ shift, assignments, occupancy }) => {
+        {[...details]
+          .sort((a, b) => {
+            if (a.shift.id === selectedShiftId) return -1;
+            if (b.shift.id === selectedShiftId) return 1;
+            return `${a.shift.startTime}${a.shift.endTime}`.localeCompare(`${b.shift.startTime}${b.shift.endTime}`);
+          })
+          .map(({ shift, assignments, occupancy }) => {
           const myAssignment = assignments.find((a) => a.userId === user.id);
           const displayRoles = getDisplayRoles(shift);
           return (
-            <article className="panel stack" key={shift.id}>
+            <article className={`panel stack ${selectedShiftId === shift.id ? "selected-shift-panel" : ""}`.trim()} key={shift.id} id={`shift-${shift.id}`}>
               <div className="row between wrap align-start">
                 <div className="stack gap-sm">
                   <p className="row gap-sm align-center wrap">
@@ -237,17 +245,30 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                       </ShiftAssignmentButton>
                     </>
                   ) : (
-                    displayRoles.map((item) => (
-                      <ShiftAssignmentButton
-                        key={`${shift.id}-${item.role}`}
-                        shiftId={shift.id}
-                        action="signup"
-                        staffRole={item.role}
-                        className="button role-signup-button"
-                      >
-                        {staffRoleLabels[item.role]} {item.count > 0 ? `${getAssignedCount(assignments, item.role)}/${item.count}` : ""}
-                      </ShiftAssignmentButton>
-                    ))
+                    displayRoles.map((item) => {
+                      const confirmedCount = getAssignedCount(assignments, item.role);
+                      const roleIsFull = item.count > 0 && confirmedCount >= item.count;
+
+                      if (roleIsFull) {
+                        return (
+                          <span key={`${shift.id}-${item.role}`} className="plain-stat-chip">
+                            {staffRoleLabels[item.role]} {confirmedCount}/{item.count}
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <ShiftAssignmentButton
+                          key={`${shift.id}-${item.role}`}
+                          shiftId={shift.id}
+                          action="signup"
+                          staffRole={item.role}
+                          className="button role-signup-button"
+                        >
+                          {staffRoleLabels[item.role]} {item.count > 0 ? `${confirmedCount}/${item.count}` : ""}
+                        </ShiftAssignmentButton>
+                      );
+                    })
                   )
                 ) : null}
               </div>
@@ -339,14 +360,26 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                             </td>
                             {canManageAssignments ? (
                               <td>
-                                <form action={removeAssignmentAction} className="row gap-sm">
-                                  <input type="hidden" name="assignmentId" value={assignment.id} />
-                                  <input type="hidden" name="date" value={date} />
-                                  <input type="hidden" name="redirectTo" value={redirectTo} />
-                                  <button type="submit" className="button ghost danger animate-tap">
-                                    Odebrat
-                                  </button>
-                                </form>
+                                <div className="row gap-sm wrap">
+                                  {assignment.status === "pending" ? (
+                                    <form action={updateAssignmentStatusAction} className="row gap-sm">
+                                      <input type="hidden" name="assignmentId" value={assignment.id} />
+                                      <input type="hidden" name="status" value="confirmed" />
+                                      <input type="hidden" name="redirectTo" value={redirectTo} />
+                                      <button type="submit" className="button small">
+                                        Potvrdit
+                                      </button>
+                                    </form>
+                                  ) : null}
+                                  <form action={removeAssignmentAction} className="row gap-sm">
+                                    <input type="hidden" name="assignmentId" value={assignment.id} />
+                                    <input type="hidden" name="date" value={date} />
+                                    <input type="hidden" name="redirectTo" value={redirectTo} />
+                                    <button type="submit" className="button ghost danger animate-tap">
+                                      Odebrat
+                                    </button>
+                                  </form>
+                                </div>
                               </td>
                             ) : null}
                           </tr>

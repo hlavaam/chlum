@@ -8,6 +8,7 @@ function normalizeInvite(invite: InviteRecord): InviteRecord {
     ...invite,
     email: invite.email || undefined,
     label: invite.label || undefined,
+    position: invite.position || undefined,
     reusable: invite.reusable !== false,
     useCount: Number.isFinite(invite.useCount) ? invite.useCount : invite.usedAt ? 1 : 0,
     maxUses: typeof invite.maxUses === "number" ? invite.maxUses : undefined,

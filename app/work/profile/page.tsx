@@ -1,6 +1,6 @@
 import { WorkAppFrame } from "@/components/work-app-frame";
-import { AppLink } from "@/components/app-link";
 import {
+  WorkBaseQrSection,
   WorkGoogleCalendarSection,
   WorkProfileAccountSection,
   WorkProfilePreferencesSection,
@@ -40,15 +40,11 @@ export default async function WorkProfilePage({ searchParams }: Props) {
             Tady máš otevřený celý účet. Kdykoliv si můžeš změnit jméno, e-mail, heslo, preference brigád i propojení s Google
             Calendar.
           </p>
-          <div className="row gap-sm wrap">
-            <AppLink className="button" href="#preference-brigad">
-              Změnit preference
-            </AppLink>
-          </div>
         </section>
 
         <WorkProfileAccountSection user={user} redirectTo={workPaths.profile} feedback={{ saved, error, welcome }} />
         <WorkProfilePreferencesSection user={user} redirectTo={workPaths.profile} feedback={{ saved }} />
+        <WorkBaseQrSection user={user} />
         <WorkGoogleCalendarSection
           user={user}
           redirectTo={workPaths.profile}

@@ -19,6 +19,7 @@ import {
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { requireRoles, requireUser } from "@/lib/auth/rbac";
 import { assignmentsService } from "@/lib/services/assignments";
+import { baseAttendanceService } from "@/lib/services/base-attendance";
 import { calendarConnectionsService } from "@/lib/services/calendar-connections";
 import { calendarSyncsService } from "@/lib/services/calendar-syncs";
 import { eventsService } from "@/lib/services/events";
@@ -34,6 +35,7 @@ import { upsertShiftForDate } from "@/lib/services/shift-upserts";
 import { shiftPresetsService } from "@/lib/services/shift-presets";
 import { shiftsService } from "@/lib/services/shifts";
 import { usersService } from "@/lib/services/users";
+import { uploadUserPhoto } from "@/lib/services/user-photos";
 import type {
   AppRole,
   AvailabilityStatus,
@@ -53,6 +55,7 @@ type DataTag =
   | "shifts"
   | "shift_presets"
   | "assignments"
+  | "base_attendance"
   | "invites"
   | "calendar_connections"
   | "calendar_syncs";
@@ -73,6 +76,12 @@ function getStringArray(formData: FormData, key: string): string[] {
 function getNumber(formData: FormData, key: string, fallback = 0): number {
   const value = Number(getString(formData, key));
   return Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeDateTimeLocalInput(value: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
 }
 
 function normalizeTimeInput(value: string): string {
@@ -362,6 +371,50 @@ export async function updateMyAccountAction(formData: FormData) {
   redirectBackWithQuery(formData, workPaths.profile, "saved", "account");
 }
 
+export async function updateMyPhotoAction(formData: FormData) {
+  const user = await requireUser({ loginPath: workPaths.login });
+  const photo = formData.get("photo");
+
+  if (!(photo instanceof File) || photo.size === 0) {
+    return redirectBackWithQuery(formData, workPaths.profile, "error", "account_photo");
+  }
+  const uploadedPhoto = photo;
+  if (!uploadedPhoto.type.startsWith("image/")) {
+    return redirectBackWithQuery(formData, workPaths.profile, "error", "account_photo_type");
+  }
+  if (uploadedPhoto.size > 1_500_000) {
+    return redirectBackWithQuery(formData, workPaths.profile, "error", "account_photo_size");
+  }
+
+  const fileBuffer = await uploadedPhoto.arrayBuffer();
+  const uploadedToR2 = await uploadUserPhoto({
+    userId: user.id,
+    bytes: fileBuffer,
+    contentType: uploadedPhoto.type,
+  });
+
+  if (uploadedToR2) {
+    await usersService.update(user.id, {
+      photoKey: uploadedToR2.key,
+      photoContentType: uploadedToR2.contentType,
+      photoDataUrl: undefined,
+    });
+  } else {
+    const bytes = Buffer.from(fileBuffer).toString("base64");
+    const photoDataUrl = `data:${uploadedPhoto.type};base64,${bytes}`;
+    await usersService.update(user.id, {
+      photoDataUrl,
+      photoKey: undefined,
+      photoContentType: uploadedPhoto.type,
+    });
+  }
+  revalidateDataTags("users");
+  revalidatePath(workPaths.profile);
+  revalidatePath(workPaths.people);
+  revalidatePath(workPaths.approvals);
+  redirectBackWithQuery(formData, workPaths.profile, "saved", "photo");
+}
+
 export async function updateAvailabilityAction(formData: FormData) {
   const user = await requireUser();
   const date = getString(formData, "date");
@@ -490,6 +543,7 @@ export async function updateAssignmentStatusAction(formData: FormData) {
   const status = getString(formData, "status");
   if (status !== "confirmed" && status !== "pending") redirect(staffPaths.adminSchedule);
   const assignment = await assignmentsService.findById(assignmentId);
+  const shift = assignment ? await shiftsService.findById(assignment.shiftId) : null;
   await assignmentsService.setStatus(assignmentId, status);
   if (assignment) {
     if (status === "confirmed") {
@@ -501,7 +555,9 @@ export async function updateAssignmentStatusAction(formData: FormData) {
   revalidateDataTags("assignments", "calendar_syncs");
   revalidatePath(staffPaths.adminSchedule);
   revalidatePath(staffPaths.employees);
-  redirect(staffPaths.adminSchedule);
+  revalidatePath(workPaths.approvals);
+  if (shift?.date) revalidatePath(staffPaths.employeeDay(shift.date));
+  redirectBack(formData, staffPaths.adminSchedule);
 }
 
 export async function removeAssignmentAction(formData: FormData) {
@@ -687,6 +743,7 @@ export async function createInviteAction(formData: FormData) {
   const manager = await requireRoles(["manager", "admin"]);
   const role = getString(formData, "role") as AppRole;
   const label = getString(formData, "label");
+  const position = getString(formData, "position");
   if (!APP_ROLES.includes(role)) redirect(staffPaths.adminPeople);
 
   const locationIds = getStringArray(formData, "locationIds");
@@ -695,6 +752,7 @@ export async function createInviteAction(formData: FormData) {
   await invitesService.create({
     token,
     label: label || undefined,
+    position: position || undefined,
     role,
     locationIds,
     createdByUserId: manager.id,
@@ -804,13 +862,49 @@ export async function deleteUserAction(formData: FormData) {
   const userId = getString(formData, "userId");
   if (!userId || userId === admin.id) redirect(staffPaths.adminPeople);
   await safeDisconnectCalendarForUser(userId);
+  await baseAttendanceService.deleteForUser(userId);
   await assignmentsService.deleteForUser(userId);
   await usersService.delete(userId);
-  revalidateDataTags("users", "assignments", "calendar_connections", "calendar_syncs");
+  revalidateDataTags("users", "assignments", "base_attendance", "calendar_connections", "calendar_syncs");
   revalidatePath(staffPaths.adminPeople);
   revalidatePath(staffPaths.adminSchedule);
   revalidatePath(staffPaths.employees);
   redirect(staffPaths.adminPeople);
+}
+
+export async function updateBaseAttendanceAction(formData: FormData) {
+  await requireRoles(["manager", "admin"]);
+  const recordId = getString(formData, "recordId");
+  if (!recordId) redirectBack(formData, workPaths.base);
+
+  const clockInAt = normalizeDateTimeLocalInput(getString(formData, "clockInAt"));
+  const clockOutAtRaw = getString(formData, "clockOutAt");
+  const clockOutAt = normalizeDateTimeLocalInput(clockOutAtRaw);
+  const clockInLocationId = getString(formData, "clockInLocationId");
+  const clockOutLocationId = getString(formData, "clockOutLocationId") || clockInLocationId;
+
+  if (!clockInAt || !clockInLocationId) redirectBack(formData, workPaths.base);
+  if (clockOutAt && new Date(clockOutAt).getTime() < new Date(clockInAt).getTime()) redirectBack(formData, workPaths.base);
+
+  await baseAttendanceService.update(recordId, {
+    clockInAt,
+    clockOutAt: clockOutAt || undefined,
+    clockInLocationId,
+    clockOutLocationId: clockOutAt ? clockOutLocationId : undefined,
+  });
+  revalidateDataTags("base_attendance");
+  revalidatePath(workPaths.base);
+  redirectBack(formData, workPaths.base);
+}
+
+export async function deleteBaseAttendanceAction(formData: FormData) {
+  await requireRoles(["manager", "admin"]);
+  const recordId = getString(formData, "recordId");
+  if (!recordId) redirectBack(formData, workPaths.base);
+  await baseAttendanceService.delete(recordId);
+  revalidateDataTags("base_attendance");
+  revalidatePath(workPaths.base);
+  redirectBack(formData, workPaths.base);
 }
 
 export async function disconnectGoogleCalendarAction(formData: FormData) {

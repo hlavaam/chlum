@@ -4,11 +4,18 @@ import { staffPaths } from "@/lib/paths";
 
 type Props = {
   params: Promise<{ date: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function DayPage({ params }: Props) {
+function readString(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function DayPage({ params, searchParams }: Props) {
   const user = await requireUser();
   const { date } = await params;
+  const query = await searchParams;
+  const shiftId = readString(query?.shiftId) ?? null;
 
-  return <DayDetailView date={date} user={user} redirectTo={staffPaths.employeeDay(date)} />;
+  return <DayDetailView date={date} user={user} redirectTo={staffPaths.employeeDay(date, shiftId ?? undefined)} selectedShiftId={shiftId} />;
 }

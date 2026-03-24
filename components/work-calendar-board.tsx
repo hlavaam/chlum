@@ -63,7 +63,7 @@ export function WorkCalendarBoard({
 }: WorkCalendarBoardProps) {
   const router = useRouter();
   const lastDropAtRef = useRef(0);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -114,7 +114,7 @@ export function WorkCalendarBoard({
               </div>
               <button
                 type="button"
-                className="button ghost small preset-sidebar-toggle"
+                className="button ghost small preset-sidebar-toggle desktop-only"
                 onClick={() => setSidebarOpen((value) => !value)}
               >
                 <span aria-hidden>{sidebarOpen ? "→" : "←"}</span>

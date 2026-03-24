@@ -1,5 +1,6 @@
 import type {
   AssignmentRecord,
+  BaseAttendanceRecord,
   BaseRecord,
   CalendarConnectionRecord,
   CalendarSyncRecord,
@@ -143,4 +144,8 @@ export const calendarConnectionsRepository = new AdaptiveRepository<CalendarConn
 export const calendarSyncsRepository = new AdaptiveRepository<CalendarSyncRecord>(
   "calendar_syncs",
   "calendar-syncs.json",
+);
+export const baseAttendanceRepository = new AdaptiveRepository<BaseAttendanceRecord>(
+  "base_attendance",
+  "base-attendance.json",
 );

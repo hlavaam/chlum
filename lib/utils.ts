@@ -88,6 +88,20 @@ export function safeInt(value: unknown, fallback = 0): number {
   return Number.isFinite(num) ? num : fallback;
 }
 
+export function minutesBetween(fromIso: string, toIso: string) {
+  const start = new Date(fromIso).getTime();
+  const end = new Date(toIso).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 0;
+  return Math.round((end - start) / 60000);
+}
+
+export function formatMinutes(value: number) {
+  const minutes = Math.max(0, Math.round(value));
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return `${hours} h ${String(rest).padStart(2, "0")} min`;
+}
+
 export function compact<T>(items: Array<T | null | undefined | false>): T[] {
   return items.filter(Boolean) as T[];
 }

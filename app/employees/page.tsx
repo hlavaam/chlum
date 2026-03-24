@@ -8,10 +8,9 @@ import { staffPaths } from "@/lib/paths";
 import {
   getCurrentUserDashboardSnapshot,
   getShiftPresetsCached,
-  getWeekRosterCached,
 } from "@/lib/services/cached-reads";
 import { assignmentsService } from "@/lib/services/assignments";
-import { addDays, endOfWeek, formatCzDate, getMonthGrid, getWeekDays, parseDateKey, startOfMonth, startOfWeek, toDateKey } from "@/lib/utils";
+import { addDays, getMonthGrid, getWeekDays, parseDateKey, startOfMonth, toDateKey } from "@/lib/utils";
 import type { ShiftType } from "@/types/models";
 
 type Props = {
@@ -69,12 +68,9 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
   const days = view === "week" ? getWeekDays(anchor) : getMonthGrid(anchor);
   const startDate = days[0];
   const endDate = days[days.length - 1];
-  const weekStart = toDateKey(startOfWeek(anchor));
-  const weekEnd = toDateKey(endOfWeek(anchor));
-  const [dashboardSnapshot, myAssignments, weekRoster, shiftPresets] = await Promise.all([
+  const [dashboardSnapshot, myAssignments, shiftPresets] = await Promise.all([
     getCurrentUserDashboardSnapshot(startDate, endDate),
     assignmentsService.forUser(user.id),
-    isManagerRole(user.role) ? getWeekRosterCached(weekStart, weekEnd) : Promise.resolve([]),
     isManagerRole(user.role) ? getShiftPresetsCached() : Promise.resolve([]),
   ]);
   const allShiftIds = [
@@ -165,57 +161,6 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
 
   return (
     <div className="stack gap-lg">
-      {canManageCalendar ? (
-        <section className="panel stack">
-          <div className="row between wrap">
-            <div>
-              <p className="eyebrow">Přehled týdne</p>
-              <h2>{formatCzDate(weekStart)} až {formatCzDate(weekEnd)}</h2>
-            </div>
-            <p className="subtle tiny">Týdenní soupis brigádníků a provozu přímo nad kalendářem.</p>
-          </div>
-          <div className="calendar-grid week">
-            {weekRoster.map((day) => (
-              <article key={day.date} className="day-card">
-                <div className="row between wrap">
-                  <strong>{formatCzDate(day.date)}</strong>
-                  <span className="badge neutral">
-                    {day.totalConfirmed} potvrzeno{day.totalPending ? ` + ${day.totalPending} čeká` : ""}
-                  </span>
-                </div>
-                {day.locations.length === 0 ? (
-                  <p className="subtle tiny">Bez směn.</p>
-                ) : (
-                  <div className="stack">
-                    {day.locations.map((location) => (
-                      <div key={`${day.date}-${location.locationId}`} className="day-location-row">
-                        <div className="day-location-main">
-                          <p className="day-location-title">
-                            <strong>{location.locationName}</strong>
-                          </p>
-                          {location.shifts.map((shift) => (
-                            <p key={shift.shiftId} className="subtle tiny">
-                              {shift.startTime}–{shift.endTime} • {shiftTypeLabels[shift.type]}
-                            </p>
-                          ))}
-                          {location.roleAssignments.map((roleAssignment) => (
-                            <p key={`${location.locationId}-${roleAssignment.role}`} className="tiny">
-                              <strong>{staffRoleLabels[roleAssignment.role]}:</strong>{" "}
-                              {roleAssignment.confirmedUsers.length > 0 ? roleAssignment.confirmedUsers.join(", ") : "nikdo"}
-                              {roleAssignment.pendingUsers.length > 0 ? ` • čeká: ${roleAssignment.pendingUsers.join(", ")}` : ""}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </article>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       <section className="panel">
         <div className="row between wrap calendar-header-row">
           <div>

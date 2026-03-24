@@ -1,4 +1,6 @@
-import { disconnectGoogleCalendarAction, updateMyAccountAction, updateMyPreferencesAction } from "@/lib/actions";
+import { disconnectGoogleCalendarAction, updateMyAccountAction, updateMyPhotoAction, updateMyPreferencesAction } from "@/lib/actions";
+import { AppLink } from "@/components/app-link";
+import { createBaseAttendanceQrDataUrl, createBaseAttendanceToken } from "@/lib/services/base-attendance-qr";
 import {
   STAFF_ROLES,
   staffRoleLabels,
@@ -36,6 +38,10 @@ type GoogleSectionProps = {
   googleStatus?: string;
 };
 
+type BaseQrSectionProps = {
+  user: Pick<UserRecord, "id" | "name">;
+};
+
 function accountErrorMessage(error?: string) {
   switch (error) {
     case "account_name":
@@ -46,6 +52,12 @@ function accountErrorMessage(error?: string) {
       return "Tenhle e-mail už v systému používá jiný účet.";
     case "account_password":
       return "Nové heslo musí mít aspoň 6 znaků.";
+    case "account_photo":
+      return "Vyber fotku, kterou chceš nahrát.";
+    case "account_photo_type":
+      return "Fotka musí být obrázek.";
+    case "account_photo_size":
+      return "Fotka je moc velká. Použij menší soubor do 1,5 MB.";
     default:
       return null;
   }
@@ -82,82 +94,108 @@ export function WorkProfileAccountSection({ user, redirectTo, feedback }: Accoun
           Uložit účet
         </button>
       </form>
+
+      <div className="stack gap-sm">
+        <p className="eyebrow">Fotka</p>
+        {user.photoDataUrl ? <img className="profile-photo-preview" src={user.photoDataUrl} alt={user.name} /> : null}
+        {feedback?.saved === "photo" ? <p className="badge success">Fotku jsme uložili.</p> : null}
+        <form action={updateMyPhotoAction} className="row gap-sm wrap" encType="multipart/form-data">
+          <input type="hidden" name="redirectTo" value={redirectTo} />
+          <input type="file" name="photo" accept="image/*" required />
+          <button type="submit" className="button ghost">
+            Nahrát fotku
+          </button>
+        </form>
+      </div>
+
+      <div className="row gap-sm wrap">
+        <AppLink className="button ghost" href="#preference-brigad">
+          Upravit preference
+        </AppLink>
+      </div>
     </section>
   );
 }
 
 export function WorkProfilePreferencesSection({ user, redirectTo, feedback }: PreferencesSectionProps) {
+  const shouldOpen = !user.onboardingCompleted || feedback?.saved === "preferences";
+
   return (
     <section className="panel stack" id="preference-brigad">
-      <div>
-        <p className="eyebrow">Onboarding</p>
-        <h2>Preference brigád</h2>
-      </div>
-      {!user.onboardingCompleted ? (
-        <p className="alert">Ještě nemáš dokončené preference. Vyplň je, ať manager ví, kam tě nasazovat.</p>
-      ) : null}
-      {feedback?.saved === "preferences" ? <p className="badge success">Onboarding a preference jsou uložené.</p> : null}
-
-      <form action={updateMyPreferencesAction} className="grid-form">
-        <input type="hidden" name="redirectTo" value={redirectTo} />
-
-        <fieldset className="full">
-          <legend>Co preferuješ</legend>
-          <div className="checkbox-grid">
-            {STAFF_ROLES.map((role) => (
-              <label key={`preferred-${role}`} className="checkbox-pill">
-                <input type="checkbox" name="preferredRoles" value={role} defaultChecked={user.preferredRoles.includes(role)} />
-                <span>{staffRoleLabels[role]}</span>
-              </label>
-            ))}
+      <details className="stack" open={shouldOpen}>
+        <summary className="button ghost summary-button">Upravit preference brigád</summary>
+        <div className="stack">
+          <div>
+            <p className="eyebrow">Onboarding</p>
+            <h2>Preference brigád</h2>
           </div>
-        </fieldset>
+          {!user.onboardingCompleted ? (
+            <p className="alert">Ještě nemáš dokončené preference. Vyplň je, ať manager ví, kam tě nasazovat.</p>
+          ) : null}
+          {feedback?.saved === "preferences" ? <p className="badge success">Onboarding a preference jsou uložené.</p> : null}
 
-        <fieldset className="full">
-          <legend>Kam rozhodně nechceš</legend>
-          <div className="checkbox-grid">
-            {STAFF_ROLES.map((role) => (
-              <label key={`excluded-${role}`} className="checkbox-pill">
-                <input type="checkbox" name="excludedRoles" value={role} defaultChecked={user.excludedRoles.includes(role)} />
-                <span>{staffRoleLabels[role]}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+          <form action={updateMyPreferencesAction} className="grid-form">
+            <input type="hidden" name="redirectTo" value={redirectTo} />
 
-        <fieldset className="full">
-          <legend>Kdy plánuješ brigádu</legend>
-          <div className="checkbox-grid">
-            {WORK_PERIODS.map((period) => (
-              <label key={period} className="checkbox-pill">
-                <input type="checkbox" name="workPeriods" value={period} defaultChecked={user.workPeriods.includes(period)} />
-                <span>{workPeriodLabels[period]}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+            <fieldset className="full">
+              <legend>Co preferuješ</legend>
+              <div className="checkbox-grid">
+                {STAFF_ROLES.map((role) => (
+                  <label key={`preferred-${role}`} className="checkbox-pill">
+                    <input type="checkbox" name="preferredRoles" value={role} defaultChecked={user.preferredRoles.includes(role)} />
+                    <span>{staffRoleLabels[role]}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
-        <fieldset className="full">
-          <legend>Jaké dny ti sedí</legend>
-          <div className="checkbox-grid">
-            {WORK_DAY_PREFERENCES.map((value) => (
-              <label key={value} className="checkbox-pill">
-                <input
-                  type="checkbox"
-                  name="workDayPreferences"
-                  value={value}
-                  defaultChecked={user.workDayPreferences.includes(value)}
-                />
-                <span>{workDayPreferenceLabels[value]}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
+            <fieldset className="full">
+              <legend>Kam rozhodně nechceš</legend>
+              <div className="checkbox-grid">
+                {STAFF_ROLES.map((role) => (
+                  <label key={`excluded-${role}`} className="checkbox-pill">
+                    <input type="checkbox" name="excludedRoles" value={role} defaultChecked={user.excludedRoles.includes(role)} />
+                    <span>{staffRoleLabels[role]}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
-        <button type="submit" className="button">
-          Uložit onboarding
-        </button>
-      </form>
+            <fieldset className="full">
+              <legend>Kdy plánuješ brigádu</legend>
+              <div className="checkbox-grid">
+                {WORK_PERIODS.map((period) => (
+                  <label key={period} className="checkbox-pill">
+                    <input type="checkbox" name="workPeriods" value={period} defaultChecked={user.workPeriods.includes(period)} />
+                    <span>{workPeriodLabels[period]}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <fieldset className="full">
+              <legend>Jaké dny ti sedí</legend>
+              <div className="checkbox-grid">
+                {WORK_DAY_PREFERENCES.map((value) => (
+                  <label key={value} className="checkbox-pill">
+                    <input
+                      type="checkbox"
+                      name="workDayPreferences"
+                      value={value}
+                      defaultChecked={user.workDayPreferences.includes(value)}
+                    />
+                    <span>{workDayPreferenceLabels[value]}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <button type="submit" className="button">
+              Uložit onboarding
+            </button>
+          </form>
+        </div>
+      </details>
     </section>
   );
 }
@@ -205,6 +243,30 @@ export function WorkGoogleCalendarSection({
       ) : (
         <p className="subtle">Až doplníme Google OAuth klíče, objeví se tady přímé propojení.</p>
       )}
+    </section>
+  );
+}
+
+export async function WorkBaseQrSection({ user }: BaseQrSectionProps) {
+  const qrDataUrl = await createBaseAttendanceQrDataUrl(user.id);
+  const backupCode = createBaseAttendanceToken(user.id);
+
+  return (
+    <section className="panel stack">
+      <div>
+        <p className="eyebrow">Základna</p>
+        <h2>Můj QR kód pro píchačku</h2>
+      </div>
+      <p className="subtle">
+        Tenhle kód otevře příchod nebo odchod na základně přes kameru. Když QR zrovna nejde, můžeš se píchnout i přes heslo.
+      </p>
+      <div className="base-profile-qr">
+        <img src={qrDataUrl} alt={`QR kód pro ${user.name}`} />
+      </div>
+      <div className="stack gap-sm">
+        <p className="tiny subtle">Záložní kód</p>
+        <code className="base-backup-code">{backupCode}</code>
+      </div>
     </section>
   );
 }

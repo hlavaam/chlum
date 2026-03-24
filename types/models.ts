@@ -8,6 +8,7 @@ export type WorkPeriod = "before_summer" | "summer";
 export type WorkDayPreference = "weekends" | "weekdays";
 export type CalendarProvider = "google";
 export type CalendarSyncStatus = "active" | "deleted";
+export type BaseAttendanceMethod = "self" | "password" | "qr";
 
 export interface DailyMenuItem {
   category: string;
@@ -45,6 +46,9 @@ export interface RoleRequirement {
 export interface UserRecord extends BaseRecord {
   name: string;
   email: string;
+  photoDataUrl?: string;
+  photoKey?: string;
+  photoContentType?: string;
   passwordHash: string;
   role: AppRole;
   active: boolean;
@@ -113,6 +117,7 @@ export interface InviteRecord extends BaseRecord {
   token: string;
   email?: string;
   label?: string;
+  position?: string;
   role: AppRole;
   locationIds: string[];
   createdByUserId: string;
@@ -144,6 +149,16 @@ export interface CalendarSyncRecord extends BaseRecord {
   syncedAt: string;
 }
 
+export interface BaseAttendanceRecord extends BaseRecord {
+  userId: string;
+  clockInAt: string;
+  clockOutAt?: string;
+  clockInLocationId: string;
+  clockOutLocationId?: string;
+  clockInMethod: BaseAttendanceMethod;
+  clockOutMethod?: BaseAttendanceMethod;
+}
+
 export type ResourceName =
   | "users"
   | "locations"
@@ -153,7 +168,8 @@ export type ResourceName =
   | "assignments"
   | "invites"
   | "calendar_connections"
-  | "calendar_syncs";
+  | "calendar_syncs"
+  | "base_attendance";
 
 export type RecordByResource = {
   users: UserRecord;
@@ -165,4 +181,5 @@ export type RecordByResource = {
   invites: InviteRecord;
   calendar_connections: CalendarConnectionRecord;
   calendar_syncs: CalendarSyncRecord;
+  base_attendance: BaseAttendanceRecord;
 };

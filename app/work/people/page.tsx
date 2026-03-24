@@ -37,6 +37,10 @@ async function WorkPeopleContent() {
             <input type="text" name="label" placeholder="Např. Letní brigádníci 2026" />
           </label>
           <label>
+            Pozice
+            <input type="text" name="position" placeholder="Např. Plac / Kuchyň / Úklid" />
+          </label>
+          <label>
             Role účtu
             <select name="role" defaultValue="brigadnik">
               {APP_ROLES.map((role) => (
@@ -75,6 +79,9 @@ async function WorkPeopleContent() {
             <div>
               <p>
                 <strong>{invite.label ?? "Sdílený onboarding odkaz"}</strong>
+              </p>
+              <p className="subtle">
+                Pozice: <strong>{invite.position ?? "Neuvedeno"}</strong>
               </p>
               <p className="subtle">
                 Platí do {invite.expiresAt.slice(0, 10)} • použito {invite.useCount}x
@@ -158,7 +165,12 @@ async function WorkPeopleContent() {
               <tbody>
                 {users.map((user) => (
                   <tr key={user.id}>
-                    <td data-label="Jméno">{user.name}</td>
+                    <td data-label="Jméno">
+                      <div className="row gap-sm align-center wrap">
+                        {user.photoDataUrl ? <img className="approval-user-photo" src={user.photoDataUrl} alt={user.name} /> : null}
+                        <span>{user.name}</span>
+                      </div>
+                    </td>
                     <td data-label="E-mail">{user.email}</td>
                     <td data-label="Role">{roleLabels[user.role]}</td>
                     <td data-label="Profil brigádníka">

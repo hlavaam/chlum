@@ -3,8 +3,21 @@ export const workPaths = {
   login: "/work",
   employees: "/work/employees",
   employeesMy: "/work/employees/my",
+  base: "/work/zakladna",
+  baseWithParams: (params: { date?: string; range?: "week" | "month" } = {}) => {
+    const search = new URLSearchParams();
+    if (params.range) search.set("range", params.range);
+    if (params.date) search.set("date", params.date);
+    const query = search.toString();
+    return query ? `/work/zakladna?${query}` : "/work/zakladna";
+  },
   profile: "/work/profile",
-  employeeDay: (date: string) => `/work/employees/day/${date}`,
+  employeeDay: (date: string, shiftId?: string) => {
+    const search = new URLSearchParams();
+    if (shiftId) search.set("shiftId", shiftId);
+    const query = search.toString();
+    return query ? `/work/employees/day/${date}?${query}` : `/work/employees/day/${date}`;
+  },
   schedule: "/work/schedule",
   scheduleWithParams: (params: { date?: string; tab?: "calendar" | "admin" } = {}) => {
     const search = new URLSearchParams();
@@ -15,6 +28,7 @@ export const workPaths = {
   },
   events: "/work/events",
   people: "/work/people",
+  approvals: "/work/approvals",
   join: (token: string) => `/work/join/${token}`,
 } as const;
 
