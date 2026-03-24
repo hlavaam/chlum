@@ -227,7 +227,7 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                     <>
                       <div className="chips">
                         {displayRoles.map((item) => (
-                          <span key={`${shift.id}-filled-${item.role}`} className="chip">
+                          <span key={`${shift.id}-filled-${item.role}`} className="plain-stat-chip">
                             {staffRoleLabels[item.role]} {getAssignedCount(assignments, item.role)}/{item.count || 0}
                           </span>
                         ))}
@@ -245,7 +245,7 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                         staffRole={item.role}
                         className="button role-signup-button"
                       >
-                        {staffRoleLabels[item.role]}
+                        {staffRoleLabels[item.role]} {item.count > 0 ? `${getAssignedCount(assignments, item.role)}/${item.count}` : ""}
                       </ShiftAssignmentButton>
                     ))
                   )

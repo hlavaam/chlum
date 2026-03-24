@@ -617,6 +617,17 @@ ul {
   min-width: 150px;
 }
 
+.plain-stat-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.86rem;
+  line-height: 1.2;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+
 .day-location-action {
   display: flex;
   align-items: center;
