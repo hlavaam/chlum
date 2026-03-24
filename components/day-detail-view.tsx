@@ -38,6 +38,16 @@ function getRequiredCount(
   return shift.requiredRoles.find((item) => item.role === role)?.count ?? 0;
 }
 
+function getAssignedCount(
+  assignments: Array<{
+    staffRole: (typeof STAFF_ROLES)[number];
+    status: "confirmed" | "pending";
+  }>,
+  role: (typeof STAFF_ROLES)[number],
+) {
+  return assignments.filter((assignment) => assignment.staffRole === role).length;
+}
+
 export async function DayDetailView({ date, user, redirectTo, closeHref, embedded = false }: DayDetailViewProps) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound();
 
@@ -211,13 +221,24 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
               <div className="row gap-sm wrap">
                 {canSelfAssign ? (
                   myAssignment ? (
-                    <ShiftAssignmentButton shiftId={shift.id} action="unassign" className="button ghost">
-                      Odhlásit se
-                    </ShiftAssignmentButton>
+                    <>
+                      <span className="chip">Přihlášený jako {staffRoleLabels[myAssignment.staffRole]}</span>
+                      <ShiftAssignmentButton shiftId={shift.id} action="unassign" className="button ghost">
+                        Odhlásit se
+                      </ShiftAssignmentButton>
+                    </>
                   ) : (
-                    <ShiftAssignmentButton shiftId={shift.id} action="signup" className="button">
-                      Přihlásit se
-                    </ShiftAssignmentButton>
+                    (shift.requiredRoles.length > 0 ? shift.requiredRoles : STAFF_ROLES.map((role) => ({ role, count: 0 }))).map((item) => (
+                      <ShiftAssignmentButton
+                        key={`${shift.id}-${item.role}`}
+                        shiftId={shift.id}
+                        action="signup"
+                        staffRole={item.role}
+                        className="button role-signup-button"
+                      >
+                        {staffRoleLabels[item.role]} {item.count > 0 ? `${getAssignedCount(assignments, item.role)}/${item.count}` : ""}
+                      </ShiftAssignmentButton>
+                    ))
                   )
                 ) : null}
               </div>

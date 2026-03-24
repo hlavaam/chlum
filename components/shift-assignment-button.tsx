@@ -3,14 +3,17 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
+import type { StaffRole } from "@/types/models";
+
 type Props = {
   shiftId: string;
   action: "signup" | "unassign";
+  staffRole?: StaffRole;
   className?: string;
   children: React.ReactNode;
 };
 
-export function ShiftAssignmentButton({ shiftId, action, className, children }: Props) {
+export function ShiftAssignmentButton({ shiftId, action, staffRole, className, children }: Props) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -25,7 +28,7 @@ export function ShiftAssignmentButton({ shiftId, action, className, children }: 
           const response = await fetch(`/api/shifts/${shiftId}/${action}`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: "{}",
+            body: JSON.stringify(action === "signup" && staffRole ? { staffRole } : {}),
           });
           if (!response.ok) return;
           router.refresh();

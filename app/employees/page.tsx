@@ -3,7 +3,7 @@ import { DayDetailView } from "@/components/day-detail-view";
 import { WorkCalendarBoard } from "@/components/work-calendar-board";
 import { canUseWorkRole, isManagerRole } from "@/lib/auth/role-access";
 import { requireUser } from "@/lib/auth/rbac";
-import { staffRoleLabels, shiftTypeLabels } from "@/lib/constants";
+import { STAFF_ROLES, staffRoleLabels, shiftTypeLabels } from "@/lib/constants";
 import { staffPaths } from "@/lib/paths";
 import {
   getCurrentUserDashboardSnapshot,
@@ -12,7 +12,7 @@ import {
 } from "@/lib/services/cached-reads";
 import { assignmentsService } from "@/lib/services/assignments";
 import { addDays, endOfWeek, formatCzDate, getMonthGrid, getWeekDays, parseDateKey, startOfMonth, startOfWeek, toDateKey } from "@/lib/utils";
-import type { EventType, ShiftType } from "@/types/models";
+import type { ShiftType } from "@/types/models";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -50,27 +50,24 @@ const LOCATION_CHIP_COLORS = [
   { bg: "rgba(168, 120, 181, 0.16)", border: "rgba(168, 120, 181, 0.35)", text: "#643f70" },
 ];
 
-function describeActivities(params: { shiftTypes: ShiftType[]; eventTypes: EventType[] }) {
-  const labels: string[] = [];
-  const pushUnique = (label: string) => {
-    if (!labels.includes(label)) labels.push(label);
-  };
-
-  for (const type of params.shiftTypes) {
-    pushUnique(toAsciiLower(shiftTypeLabels[type]));
-  }
-  for (const type of params.eventTypes) {
-    pushUnique(type === "wedding" ? "svatba" : "event");
-  }
-
-  if (labels.length === 0) return "volno";
-  return labels.join(" + ");
-}
-
 function locationBubbleLabel(location?: { code?: string | null; name?: string | null } | null) {
   if (location?.code) return capitalize(toAsciiLower(location.code));
   if (location?.name) return capitalize(toAsciiLower(location.name.replace(/^restaurace\s+/i, "")));
-  return "Pobocka";
+  return "Pobočka";
+}
+
+function formatRequiredRoles(
+  requirements: Array<{
+    role: (typeof STAFF_ROLES)[number];
+    count: number;
+  }>,
+) {
+  const labels = STAFF_ROLES.map((role) => {
+    const count = requirements.find((item) => item.role === role)?.count ?? 0;
+    return count > 0 ? `${staffRoleLabels[role]} ${count}` : null;
+  }).filter((value): value is string => Boolean(value));
+
+  return labels.length > 0 ? labels.join(" • ") : "Bez upřesnění";
 }
 
 export default async function EmployeesCalendarPage({ searchParams }: Props) {
@@ -139,44 +136,22 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
     const hasEvent =
       (summary?.shifts.some((shift) => shift.type === "event") ?? false) ||
       dayEvents.some((event) => event.type === "event");
-    const eventsByLocation = new Map<string, EventType[]>();
-    for (const event of dayEvents) {
-      const list = eventsByLocation.get(event.locationId) ?? [];
-      if (!list.includes(event.type)) list.push(event.type);
-      eventsByLocation.set(event.locationId, list);
-    }
-    const rowLocationIds = [
-      ...new Set([
-        ...(summary?.locationSummaries.map((item) => item.locationId) ?? []),
-        ...dayEvents.map((event) => event.locationId),
-      ]),
-    ];
-
     return {
       date: day,
       dayNumber: dayDate.getDate(),
       weekdayLabel: new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(dayDate),
       href: buildCalendarHref({ view, date: anchorDate, day }),
       className: `day-card ${hasMyShift ? "mine" : ""} ${hasWedding ? "wedding-day" : ""} ${hasEvent ? "event-day" : ""} ${isOutsideAnchorMonth ? "outside-month" : ""}`.trim(),
-      rows: rowLocationIds.map((locationId) => {
-        const location = locationMap.get(locationId);
-        const color = locationColorById.get(locationId);
-        const locationSummary = summary?.locationSummaries.find((item) => item.locationId === locationId);
-        const eventTypes = eventsByLocation.get(locationId) ?? [];
-        const activityLabel = describeActivities({
-          shiftTypes: locationSummary?.shiftTypes ?? [],
-          eventTypes,
-        });
-        const singleShiftId = locationSummary && locationSummary.shiftIds.length === 1 ? locationSummary.shiftIds[0] : null;
-        const isMine = singleShiftId ? myShiftIds.has(singleShiftId) : false;
+      shifts: (summary?.shifts ?? []).map((shift) => {
+        const location = locationMap.get(shift.locationId);
+        const color = locationColorById.get(shift.locationId);
 
         return {
-          activityLabel,
-          confirmedCount: locationSummary?.confirmedCount ?? null,
-          minimumPeople: locationSummary?.minimumPeople ?? null,
-          pendingCount: locationSummary?.pendingCount ?? 0,
-          singleShiftId,
-          isMine,
+          shiftId: shift.id,
+          locationLabel: locationBubbleLabel(location),
+          timeLabel: `${shift.startTime}–${shift.endTime}`,
+          roleSummary: formatRequiredRoles(shift.requiredRoles),
+          isMine: myShiftIds.has(shift.id),
           color,
         };
       }),

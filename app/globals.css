@@ -362,14 +362,18 @@ ul {
 .day-card {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
-  min-height: 170px;
-  padding: 0.8rem;
-  border-radius: 14px;
+  gap: 0.75rem;
+  min-height: 228px;
+  padding: 0.95rem;
+  border-radius: 18px;
   border: 1px solid var(--panel-border);
   background: rgba(255, 255, 255, 0.8);
   box-shadow: var(--shadow);
   transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.day-card-clickable {
+  cursor: pointer;
 }
 
 .day-card:hover {
@@ -402,6 +406,29 @@ ul {
 
 .day-card.outside-month {
   opacity: 0.64;
+}
+
+.day-card-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+
+.day-card-date {
+  font-size: 1.5rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.day-card-weekday {
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.day-shift-list {
+  gap: 0.5rem;
 }
 
 .badge {
@@ -528,10 +555,15 @@ ul {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.45rem 0.55rem;
-  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  border-radius: 14px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: rgba(255, 255, 255, 0.7);
+}
+
+.shift-summary-row {
+  min-height: 86px;
+  align-items: flex-start;
 }
 
 .day-location-row.mine-row {
@@ -557,16 +589,19 @@ ul {
 
 .day-location-type {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   color: var(--muted);
-  line-height: 1.1;
-  text-transform: lowercase;
+  line-height: 1.3;
 }
 
 .day-location-places {
-  font-size: 0.84rem;
+  font-size: 0.9rem;
   margin: 0;
   line-height: 1.1;
+}
+
+.role-signup-button {
+  min-width: 150px;
 }
 
 .day-location-action {
@@ -1542,7 +1577,7 @@ details > summary {
   }
 
   .day-card {
-    min-height: 136px;
+    min-height: 168px;
     padding: 0.7rem;
     border-radius: 12px;
   }

@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { AppLink } from "@/components/app-link";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
-import { ShiftAssignmentButton } from "@/components/shift-assignment-button";
 import { createShiftPresetAction, deleteShiftPresetAction } from "@/lib/actions";
 import { SHIFT_TYPES, STAFF_ROLES, staffRoleLabels, shiftTypeLabels } from "@/lib/constants";
 import type { LocationRecord } from "@/types/models";
@@ -18,11 +16,10 @@ type LocationColor = {
 };
 
 type CalendarLocationRow = {
-  activityLabel: string;
-  confirmedCount: number | null;
-  minimumPeople: number | null;
-  pendingCount: number;
-  singleShiftId: string | null;
+  shiftId: string;
+  locationLabel: string;
+  timeLabel: string;
+  roleSummary: string;
   isMine: boolean;
   color?: LocationColor;
 };
@@ -33,7 +30,7 @@ type CalendarDayCard = {
   weekdayLabel: string;
   href: string;
   className: string;
-  rows: CalendarLocationRow[];
+  shifts: CalendarLocationRow[];
   emptyStateLabel: string;
 };
 
@@ -61,6 +58,7 @@ export function WorkCalendarBoard({
   presetDeleted,
 }: WorkCalendarBoardProps) {
   const router = useRouter();
+  const lastDropAtRef = useRef(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
@@ -74,6 +72,7 @@ export function WorkCalendarBoard({
 
   async function handleDrop(date: string, presetId: string) {
     setBusyTarget(date);
+    lastDropAtRef.current = Date.now();
     try {
       const response = await fetch("/api/work/preset-shifts", {
         method: "POST",
@@ -92,6 +91,11 @@ export function WorkCalendarBoard({
       setDropTarget(null);
       setActivePresetId(null);
     }
+  }
+
+  function handleDayOpen(href: string) {
+    if (Date.now() - lastDropAtRef.current < 350) return;
+    router.push(href);
   }
 
   return (
@@ -119,7 +123,20 @@ export function WorkCalendarBoard({
             {days.map((day) => (
               <article
                 key={day.date}
-                className={`${day.className} ${dropTarget === day.date ? "drop-active" : ""}`.trim()}
+                className={`${day.className} day-card-clickable ${dropTarget === day.date ? "drop-active" : ""}`.trim()}
+                role="button"
+                tabIndex={0}
+                aria-label={`Otevřít směny dne ${day.date}`}
+                onClick={(event) => {
+                  const target = event.target as HTMLElement;
+                  if (target.closest("a, button, input, select, textarea, label, form")) return;
+                  handleDayOpen(day.href);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+                  event.preventDefault();
+                  handleDayOpen(day.href);
+                }}
                 onDragOver={(event) => {
                   if (!canManageCalendar || !activePresetId) return;
                   event.preventDefault();
@@ -131,28 +148,26 @@ export function WorkCalendarBoard({
                 onDrop={(event) => {
                   if (!canManageCalendar) return;
                   event.preventDefault();
+                  event.stopPropagation();
                   const presetId = event.dataTransfer.getData("text/preset") || activePresetId;
                   if (!presetId) return;
                   void handleDrop(day.date, presetId);
                 }}
               >
-                <div className="row between">
-                  <strong>{day.dayNumber}.</strong>
-                  <AppLink className="chip chip-button day-open-link icon-only" href={day.href} aria-label={`Otevřít den ${day.date}`}>
-                    <span aria-hidden>↗</span>
-                  </AppLink>
+                <div className="day-card-header">
+                  <strong className="day-card-date">{day.dayNumber}.</strong>
+                  <span className="day-card-weekday">{day.weekdayLabel}</span>
                 </div>
-                <p className="subtle">{day.weekdayLabel}</p>
 
-                {day.rows.length > 0 ? (
-                  <div className="stack">
-                    {day.rows.map((row) => {
+                {day.shifts.length > 0 ? (
+                  <div className="stack day-shift-list">
+                    {day.shifts.map((row) => {
                       const isBusy = busyTarget === day.date;
 
                       return (
                         <div
-                          key={`${day.date}-${row.activityLabel}-${row.singleShiftId ?? "multi"}`}
-                          className={`day-location-row ${row.isMine ? "mine-row" : ""}`.trim()}
+                          key={`${day.date}-${row.shiftId}`}
+                          className={`day-location-row shift-summary-row ${row.isMine ? "mine-row" : ""}`.trim()}
                           style={
                             row.color
                               ? {
@@ -163,43 +178,16 @@ export function WorkCalendarBoard({
                           }
                         >
                           <div className="day-location-main">
-                            <p className="day-location-type">{row.activityLabel}</p>
-                            {row.confirmedCount !== null && row.minimumPeople !== null ? (
-                              <p className="day-location-places">
-                                <strong>{row.confirmedCount}/{row.minimumPeople}</strong>
-                                {row.pendingCount ? ` +${row.pendingCount}` : ""}
-                              </p>
-                            ) : (
-                              <p className="day-location-places subtle">-</p>
-                            )}
+                            <p className="day-location-title">
+                              <strong>{row.locationLabel}</strong>
+                            </p>
+                            <p className="day-location-places">
+                              <strong>{row.timeLabel}</strong>
+                            </p>
+                            <p className="day-location-type">{row.roleSummary}</p>
                             {isBusy ? <p className="tiny subtle">Přidávám preset…</p> : null}
                           </div>
-
-                          {canSelfAssign && row.singleShiftId ? (
-                            row.isMine ? (
-                              <div className="day-location-action">
-                                <ShiftAssignmentButton
-                                  shiftId={row.singleShiftId}
-                                  action="unassign"
-                                  className="chip chip-button quick-action remove"
-                                >
-                                  Odhlásit
-                                </ShiftAssignmentButton>
-                              </div>
-                            ) : (
-                              <div className="day-location-action">
-                                <ShiftAssignmentButton
-                                  shiftId={row.singleShiftId}
-                                  action="signup"
-                                  className="chip chip-button quick-action join"
-                                >
-                                  Přihlásit
-                                </ShiftAssignmentButton>
-                              </div>
-                            )
-                          ) : canSelfAssign && row.confirmedCount !== null && row.minimumPeople !== null && !row.singleShiftId ? (
-                            <span className="chip">Více směn</span>
-                          ) : null}
+                          {row.isMine ? <span className="chip">Moje směna</span> : null}
                         </div>
                       );
                     })}
