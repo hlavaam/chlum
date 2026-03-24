@@ -6,7 +6,7 @@ const ACCESS_COOKIE_VALUE = "granted";
 const MAINTENANCE_PATH = "/maintenance";
 const ACCESS_API_PATH = "/api/maintenance/access";
 const WORK_PATH_PREFIX = "/work";
-const WORK_API_PREFIXES = ["/api/auth/", "/api/me", "/api/shifts/"];
+const WORK_API_PREFIXES = ["/api/auth/", "/api/me", "/api/shifts/", "/api/google-calendar/"];
 
 function isPublicAsset(pathname: string) {
   return pathname.startsWith("/_next/") || pathname === "/favicon.ico" || /\.[a-zA-Z0-9]+$/.test(pathname);

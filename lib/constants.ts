@@ -1,7 +1,15 @@
-import type { AppRole, AvailabilityStatus, EventType, ShiftType, StaffRole } from "@/types/models";
+import type {
+  AppRole,
+  AvailabilityStatus,
+  EventType,
+  ShiftType,
+  StaffRole,
+  WorkDayPreference,
+  WorkPeriod,
+} from "@/types/models";
 
 export const APP_ROLES: AppRole[] = ["brigadnik", "manager", "admin", "superadmin"];
-export const STAFF_ROLES: StaffRole[] = ["service", "bar", "kitchen", "runner"];
+export const STAFF_ROLES: StaffRole[] = ["plac", "kitchen", "cleaning"];
 export const SHIFT_TYPES: ShiftType[] = ["restaurant", "wedding", "event"];
 export const EVENT_TYPES: EventType[] = ["wedding", "event"];
 export const AVAILABILITY_STATUSES: AvailabilityStatus[] = [
@@ -9,6 +17,8 @@ export const AVAILABILITY_STATUSES: AvailabilityStatus[] = [
   "preferred",
   "unavailable",
 ];
+export const WORK_PERIODS: WorkPeriod[] = ["before_summer", "summer"];
+export const WORK_DAY_PREFERENCES: WorkDayPreference[] = ["weekends", "weekdays"];
 
 export const roleLabels: Record<AppRole, string> = {
   brigadnik: "Brigádník",
@@ -18,10 +28,9 @@ export const roleLabels: Record<AppRole, string> = {
 };
 
 export const staffRoleLabels: Record<StaffRole, string> = {
-  service: "Obsluha",
-  bar: "Bar",
-  kitchen: "Kuchyně",
-  runner: "Runner",
+  plac: "Plac",
+  kitchen: "Kuchyň",
+  cleaning: "Úklid",
 };
 
 export const shiftTypeLabels: Record<ShiftType, string> = {
@@ -39,4 +48,14 @@ export const availabilityLabels: Record<AvailabilityStatus, string> = {
   available: "Mohu",
   preferred: "Preferuji",
   unavailable: "Nemohu",
+};
+
+export const workPeriodLabels: Record<WorkPeriod, string> = {
+  before_summer: "I před prázdninami",
+  summer: "Hlavně o prázdninách",
+};
+
+export const workDayPreferenceLabels: Record<WorkDayPreference, string> = {
+  weekends: "Spíš víkendy",
+  weekdays: "Spíš týden",
 };

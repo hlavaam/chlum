@@ -1,12 +1,17 @@
 import { AppLink } from "@/components/app-link";
-import { ShiftAssignmentButton } from "@/components/shift-assignment-button";
-import { canUseWorkRole } from "@/lib/auth/role-access";
+import { DayDetailView } from "@/components/day-detail-view";
+import { WorkCalendarBoard } from "@/components/work-calendar-board";
+import { canUseWorkRole, isManagerRole } from "@/lib/auth/role-access";
 import { requireUser } from "@/lib/auth/rbac";
-import { shiftTypeLabels } from "@/lib/constants";
+import { staffRoleLabels, shiftTypeLabels } from "@/lib/constants";
 import { staffPaths } from "@/lib/paths";
-import { getCurrentUserDashboardSnapshot } from "@/lib/services/cached-reads";
+import {
+  getCurrentUserDashboardSnapshot,
+  getShiftPresetsCached,
+  getWeekRosterCached,
+} from "@/lib/services/cached-reads";
 import { assignmentsService } from "@/lib/services/assignments";
-import { addDays, getMonthGrid, getWeekDays, parseDateKey, startOfMonth, toDateKey } from "@/lib/utils";
+import { addDays, endOfWeek, formatCzDate, getMonthGrid, getWeekDays, parseDateKey, startOfMonth, startOfWeek, toDateKey } from "@/lib/utils";
 import type { EventType, ShiftType } from "@/types/models";
 
 type Props = {
@@ -27,6 +32,14 @@ function toAsciiLower(value: string) {
 
 function capitalize(value: string) {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+}
+
+function buildCalendarHref(params: { view: "week" | "month"; date: string; day?: string | null }) {
+  const search = new URLSearchParams();
+  search.set("view", params.view);
+  search.set("date", params.date);
+  if (params.day) search.set("day", params.day);
+  return `${staffPaths.employees}?${search.toString()}`;
 }
 
 const LOCATION_CHIP_COLORS = [
@@ -65,13 +78,21 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
   const params = await searchParams;
   const view = readString(params, "view") === "week" ? "week" : "month";
   const anchorDate = readString(params, "date") || toDateKey(new Date());
+  const selectedDayRaw = readString(params, "day");
+  const selectedDay = selectedDayRaw && /^\d{4}-\d{2}-\d{2}$/.test(selectedDayRaw) ? selectedDayRaw : null;
+  const presetCreated = readString(params, "presetCreated") === "1";
+  const presetDeleted = readString(params, "presetDeleted") === "1";
   const anchor = parseDateKey(anchorDate);
   const days = view === "week" ? getWeekDays(anchor) : getMonthGrid(anchor);
   const startDate = days[0];
   const endDate = days[days.length - 1];
-  const [dashboardSnapshot, myAssignments] = await Promise.all([
+  const weekStart = toDateKey(startOfWeek(anchor));
+  const weekEnd = toDateKey(endOfWeek(anchor));
+  const [dashboardSnapshot, myAssignments, weekRoster, shiftPresets] = await Promise.all([
     getCurrentUserDashboardSnapshot(startDate, endDate),
     assignmentsService.forUser(user.id),
+    isManagerRole(user.role) ? getWeekRosterCached(weekStart, weekEnd) : Promise.resolve([]),
+    isManagerRole(user.role) ? getShiftPresetsCached() : Promise.resolve([]),
   ]);
   const summaryMap = new Map(dashboardSnapshot.summaryEntries);
   const locations = dashboardSnapshot.locations;
@@ -100,53 +121,158 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
     year: "numeric",
   }).format(view === "month" ? startOfMonth(anchor) : anchor);
   const canSelfAssign = canUseWorkRole(user.role);
+  const canManageCalendar = isManagerRole(user.role);
   const visibleLocationIds = [...new Set(
     days.flatMap((day) => (summaryMap.get(day)?.shifts ?? []).map((shift) => shift.locationId)),
   )].filter((id) => locationMap.has(id));
+  const calendarBaseHref = buildCalendarHref({ view, date: anchorDate });
+  const dayCards = days.map((day) => {
+    const summary = summaryMap.get(day);
+    const dayDate = new Date(`${day}T00:00:00`);
+    const isOutsideAnchorMonth =
+      view === "month" && (dayDate.getMonth() !== anchor.getMonth() || dayDate.getFullYear() !== anchor.getFullYear());
+    const dayEvents = eventsByDate.get(day) ?? [];
+    const hasMyShift = summary?.shifts.some((shift) => myShiftIds.has(shift.id)) ?? false;
+    const hasWedding =
+      (summary?.shifts.some((shift) => shift.type === "wedding") ?? false) ||
+      dayEvents.some((event) => event.type === "wedding");
+    const hasEvent =
+      (summary?.shifts.some((shift) => shift.type === "event") ?? false) ||
+      dayEvents.some((event) => event.type === "event");
+    const eventsByLocation = new Map<string, EventType[]>();
+    for (const event of dayEvents) {
+      const list = eventsByLocation.get(event.locationId) ?? [];
+      if (!list.includes(event.type)) list.push(event.type);
+      eventsByLocation.set(event.locationId, list);
+    }
+    const rowLocationIds = [
+      ...new Set([
+        ...(summary?.locationSummaries.map((item) => item.locationId) ?? []),
+        ...dayEvents.map((event) => event.locationId),
+      ]),
+    ];
+
+    return {
+      date: day,
+      dayNumber: dayDate.getDate(),
+      weekdayLabel: new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(dayDate),
+      href: buildCalendarHref({ view, date: anchorDate, day }),
+      className: `day-card ${hasMyShift ? "mine" : ""} ${hasWedding ? "wedding-day" : ""} ${hasEvent ? "event-day" : ""} ${isOutsideAnchorMonth ? "outside-month" : ""}`.trim(),
+      rows: rowLocationIds.map((locationId) => {
+        const location = locationMap.get(locationId);
+        const color = locationColorById.get(locationId);
+        const locationSummary = summary?.locationSummaries.find((item) => item.locationId === locationId);
+        const eventTypes = eventsByLocation.get(locationId) ?? [];
+        const activityLabel = describeActivities({
+          shiftTypes: locationSummary?.shiftTypes ?? [],
+          eventTypes,
+        });
+        const singleShiftId = locationSummary && locationSummary.shiftIds.length === 1 ? locationSummary.shiftIds[0] : null;
+        const isMine = singleShiftId ? myShiftIds.has(singleShiftId) : false;
+
+        return {
+          activityLabel,
+          confirmedCount: locationSummary?.confirmedCount ?? null,
+          minimumPeople: locationSummary?.minimumPeople ?? null,
+          pendingCount: locationSummary?.pendingCount ?? 0,
+          singleShiftId,
+          isMine,
+          color,
+        };
+      }),
+      emptyStateLabel: "Bez směn",
+    };
+  });
 
   return (
     <div className="stack gap-lg">
+      {canManageCalendar ? (
+        <section className="panel stack">
+          <div className="row between wrap">
+            <div>
+              <p className="eyebrow">Přehled týdne</p>
+              <h2>{formatCzDate(weekStart)} až {formatCzDate(weekEnd)}</h2>
+            </div>
+            <p className="subtle tiny">Týdenní soupis brigádníků a provozu přímo nad kalendářem.</p>
+          </div>
+          <div className="calendar-grid week">
+            {weekRoster.map((day) => (
+              <article key={day.date} className="day-card">
+                <div className="row between wrap">
+                  <strong>{formatCzDate(day.date)}</strong>
+                  <span className="badge neutral">
+                    {day.totalConfirmed} potvrzeno{day.totalPending ? ` + ${day.totalPending} čeká` : ""}
+                  </span>
+                </div>
+                {day.locations.length === 0 ? (
+                  <p className="subtle tiny">Bez směn.</p>
+                ) : (
+                  <div className="stack">
+                    {day.locations.map((location) => (
+                      <div key={`${day.date}-${location.locationId}`} className="day-location-row">
+                        <div className="day-location-main">
+                          <p className="day-location-title">
+                            <strong>{location.locationName}</strong>
+                          </p>
+                          {location.shifts.map((shift) => (
+                            <p key={shift.shiftId} className="subtle tiny">
+                              {shift.startTime}–{shift.endTime} • {shiftTypeLabels[shift.type]}
+                            </p>
+                          ))}
+                          {location.roleAssignments.map((roleAssignment) => (
+                            <p key={`${location.locationId}-${roleAssignment.role}`} className="tiny">
+                              <strong>{staffRoleLabels[roleAssignment.role]}:</strong>{" "}
+                              {roleAssignment.confirmedUsers.length > 0 ? roleAssignment.confirmedUsers.join(", ") : "nikdo"}
+                              {roleAssignment.pendingUsers.length > 0 ? ` • čeká: ${roleAssignment.pendingUsers.join(", ")}` : ""}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="panel">
-        <div className="row between wrap">
+        <div className="row between wrap calendar-header-row">
           <div>
             <p className="eyebrow">Přehled provozu</p>
             <h2>{monthLabel}</h2>
           </div>
           <div className="calendar-controls">
             <div className="row gap-sm calendar-nav-row">
-              <AppLink className="button ghost" href={`${staffPaths.employees}?view=${view}&date=${prevAnchor}`}>
+              <AppLink className="button ghost small" href={buildCalendarHref({ view, date: prevAnchor })}>
                 Předchozí
               </AppLink>
-              <AppLink className="button ghost" href={`${staffPaths.employees}?view=${view}&date=${toDateKey(new Date())}`}>
+              <AppLink className="button ghost small" href={buildCalendarHref({ view, date: toDateKey(new Date()) })}>
                 Dnes
               </AppLink>
-              <AppLink className="button ghost" href={`${staffPaths.employees}?view=${view}&date=${nextAnchor}`}>
+              <AppLink className="button ghost small" href={buildCalendarHref({ view, date: nextAnchor })}>
                 Další
               </AppLink>
             </div>
             <div className="view-slider" role="tablist" aria-label="Přepnutí zobrazení kalendáře">
               <AppLink
                 className={`view-slide ${view === "week" ? "active" : ""}`}
-                href={`${staffPaths.employees}?view=week&date=${anchorDate}`}
+                href={buildCalendarHref({ view: "week", date: anchorDate })}
               >
                 Týdenní přehled
               </AppLink>
               <AppLink
                 className={`view-slide ${view === "month" ? "active" : ""}`}
-                href={`${staffPaths.employees}?view=month&date=${anchorDate}`}
+                href={buildCalendarHref({ view: "month", date: anchorDate })}
               >
                 Měsíční přehled
               </AppLink>
             </div>
           </div>
         </div>
-        {canSelfAssign ? (
-          <p className="subtle tiny calendar-help">
-            Klikni na den a v detailu se přihlas na směnu. Barvy níže odlišují pobočky.
-          </p>
-        ) : null}
         {visibleLocationIds.length > 0 ? (
-          <div className="chips day-legend">
+          <div className="chips day-legend compact-legend">
             {visibleLocationIds.map((locationId) => {
               const location = locationMap.get(locationId);
               const color = locationColorById.get(locationId);
@@ -160,8 +286,9 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
                     borderColor: color.border,
                     color: color.text,
                   }}
+                  title={location.name}
                 >
-                  {location.code} • {location.name}
+                  {location.code || location.name}
                 </span>
               );
             })}
@@ -169,123 +296,32 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
         ) : null}
       </section>
 
-      <section className={view === "month" ? "calendar-grid month" : "calendar-grid week"}>
-        {days.map((day) => {
-          const summary = summaryMap.get(day);
-          const dayDate = new Date(`${day}T00:00:00`);
-          const isOutsideAnchorMonth =
-            view === "month" && (dayDate.getMonth() !== anchor.getMonth() || dayDate.getFullYear() !== anchor.getFullYear());
-          const dayEvents = eventsByDate.get(day) ?? [];
-          const hasMyShift = summary?.shifts.some((shift) => myShiftIds.has(shift.id)) ?? false;
-          const hasWedding =
-            (summary?.shifts.some((shift) => shift.type === "wedding") ?? false) ||
-            dayEvents.some((event) => event.type === "wedding");
-          const hasEvent =
-            (summary?.shifts.some((shift) => shift.type === "event") ?? false) ||
-            dayEvents.some((event) => event.type === "event");
-          const eventsByLocation = new Map<string, EventType[]>();
-          for (const event of dayEvents) {
-            const list = eventsByLocation.get(event.locationId) ?? [];
-            if (!list.includes(event.type)) list.push(event.type);
-            eventsByLocation.set(event.locationId, list);
-          }
-          const rowLocationIds = [
-            ...new Set([
-              ...(summary?.locationSummaries.map((item) => item.locationId) ?? []),
-              ...dayEvents.map((event) => event.locationId),
-            ]),
-          ];
-          return (
-            <article
-              key={day}
-              className={`day-card ${hasMyShift ? "mine" : ""} ${hasWedding ? "wedding-day" : ""} ${hasEvent ? "event-day" : ""} ${isOutsideAnchorMonth ? "outside-month" : ""}`.trim()}
-            >
-              <div className="row between">
-                <strong>{dayDate.getDate()}.</strong>
-                <AppLink className="chip chip-button day-open-link" href={staffPaths.employeeDay(day)}>
-                  Detail dne
-                </AppLink>
-              </div>
-              <p className="subtle">{new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(dayDate)}</p>
+      <WorkCalendarBoard
+        days={dayCards}
+        view={view}
+        canSelfAssign={canSelfAssign}
+        canManageCalendar={canManageCalendar}
+        locations={locations}
+        shiftPresets={shiftPresets}
+        currentHref={calendarBaseHref}
+        presetCreated={presetCreated}
+        presetDeleted={presetDeleted}
+      />
 
-              {summary || dayEvents.length > 0 ? (
-                <div className="stack">
-                  {rowLocationIds.map((locationId) => {
-                    const location = locationMap.get(locationId);
-                    const color = locationColorById.get(locationId);
-                    const locationSummary = summary?.locationSummaries.find((item) => item.locationId === locationId);
-                    const eventTypes = eventsByLocation.get(locationId) ?? [];
-                    const activityLabel = describeActivities({
-                      shiftTypes: locationSummary?.shiftTypes ?? [],
-                      eventTypes,
-                    });
-                    const singleShiftId =
-                      locationSummary && locationSummary.shiftIds.length === 1 ? locationSummary.shiftIds[0] : null;
-                    const isMine = singleShiftId ? myShiftIds.has(singleShiftId) : false;
-                    return (
-                      <div
-                        key={locationId}
-                        className={`day-location-row ${isMine ? "mine-row" : ""}`.trim()}
-                        style={
-                          color
-                            ? {
-                                backgroundColor: color.bg,
-                                borderColor: color.border,
-                              }
-                            : undefined
-                        }
-                      >
-                        <div className="day-location-main">
-                          <p className="day-location-title">
-                            <strong>{locationBubbleLabel(location)}</strong>
-                          </p>
-                          <p className="day-location-type">{activityLabel}</p>
-                          {locationSummary ? (
-                            <p className="day-location-places">
-                              <strong>{locationSummary.confirmedCount}/{locationSummary.minimumPeople}</strong>
-                              {locationSummary.pendingCount ? ` +${locationSummary.pendingCount}` : ""}
-                            </p>
-                          ) : (
-                            <p className="day-location-places subtle">-</p>
-                          )}
-                        </div>
-
-                        {canSelfAssign && singleShiftId ? (
-                          isMine ? (
-                            <div className="day-location-action">
-                              <ShiftAssignmentButton
-                                shiftId={singleShiftId}
-                                action="unassign"
-                                className="chip chip-button quick-action remove"
-                              >
-                                Odhlásit
-                              </ShiftAssignmentButton>
-                            </div>
-                          ) : (
-                            <div className="day-location-action">
-                              <ShiftAssignmentButton
-                                shiftId={singleShiftId}
-                                action="signup"
-                                className="chip chip-button quick-action join"
-                              >
-                                Přihlásit
-                              </ShiftAssignmentButton>
-                            </div>
-                          )
-                        ) : canSelfAssign && locationSummary && locationSummary.shiftIds.length > 1 ? (
-                          <span className="chip">Více směn</span>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="subtle">Bez směn</p>
-              )}
-            </article>
-          );
-        })}
-      </section>
+      {selectedDay ? (
+        <div className="calendar-overlay" role="dialog" aria-modal="true" aria-label={`Detail dne ${selectedDay}`}>
+          <AppLink className="calendar-overlay-backdrop" href={calendarBaseHref} aria-label="Zavřít detail dne" />
+          <div className="calendar-overlay-panel">
+            <DayDetailView
+              date={selectedDay}
+              user={user}
+              embedded
+              closeHref={calendarBaseHref}
+              redirectTo={buildCalendarHref({ view, date: anchorDate, day: selectedDay })}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

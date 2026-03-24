@@ -4,7 +4,7 @@ import { locationsService } from "@/lib/services/locations";
 import { startPerfTrace } from "@/lib/perf";
 import { shiftsService } from "@/lib/services/shifts";
 import { usersService } from "@/lib/services/users";
-import type { AssignmentRecord, ShiftRecord } from "@/types/models";
+import type { AssignmentRecord, ShiftRecord, StaffRole } from "@/types/models";
 
 export interface DayShiftView {
   shift: ShiftRecord;
@@ -35,6 +35,31 @@ export interface DaySummary {
     minimumPeople: number;
     confirmedCount: number;
     pendingCount: number;
+  }>;
+}
+
+export interface WeekRosterDay {
+  date: string;
+  totalConfirmed: number;
+  totalPending: number;
+  locations: Array<{
+    locationId: string;
+    locationName: string;
+    confirmedCount: number;
+    pendingCount: number;
+    shifts: Array<{
+      shiftId: string;
+      startTime: string;
+      endTime: string;
+      type: ShiftRecord["type"];
+      minimumPeople: number;
+      requiredRoleSummary: string;
+    }>;
+    roleAssignments: Array<{
+      role: StaffRole;
+      confirmedUsers: string[];
+      pendingUsers: string[];
+    }>;
   }>;
 }
 
@@ -207,6 +232,114 @@ class ScheduleService {
     };
     trace.end({ filtered_events: result.events.length });
     return result;
+  }
+
+  async getWeekRoster(startDate: string, endDate: string): Promise<WeekRosterDay[]> {
+    const trace = startPerfTrace("schedule.week_roster", { startDate, endDate });
+    const shifts = await shiftsService.forDateRange(startDate, endDate);
+    const [assignments, users, locations] = await Promise.all([
+      assignmentsService.forShiftIds(shifts.map((shift) => shift.id)),
+      usersService.loadAll(),
+      locationsService.loadAll(),
+    ]);
+    trace.step("load_week_roster_inputs", {
+      shifts: shifts.length,
+      assignments: assignments.length,
+      users: users.length,
+      locations: locations.length,
+    });
+
+    const userMap = new Map(users.map((user) => [user.id, user]));
+    const locationMap = new Map(locations.map((location) => [location.id, location]));
+    const assignmentsByShift = new Map<string, AssignmentRecord[]>();
+    for (const assignment of assignments) {
+      const list = assignmentsByShift.get(assignment.shiftId) ?? [];
+      list.push(assignment);
+      assignmentsByShift.set(assignment.shiftId, list);
+    }
+
+    const dayMap = new Map<string, WeekRosterDay>();
+    for (const shift of shifts) {
+      const shiftAssignments = assignmentsByShift.get(shift.id) ?? [];
+      const day = dayMap.get(shift.date) ?? {
+        date: shift.date,
+        totalConfirmed: 0,
+        totalPending: 0,
+        locations: [],
+      };
+      const locationName = locationMap.get(shift.locationId)?.name ?? shift.locationId;
+      let locationEntry = day.locations.find((item) => item.locationId === shift.locationId);
+      if (!locationEntry) {
+        locationEntry = {
+          locationId: shift.locationId,
+          locationName,
+          confirmedCount: 0,
+          pendingCount: 0,
+          shifts: [],
+          roleAssignments: [],
+        };
+        day.locations.push(locationEntry);
+      }
+
+      const requiredRoleSummary =
+        shift.requiredRoles.length > 0
+          ? shift.requiredRoles.map((item) => `${item.role} ${item.count}x`).join(", ")
+          : "role volně";
+      locationEntry.shifts.push({
+        shiftId: shift.id,
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        type: shift.type,
+        minimumPeople: shift.minimumPeople,
+        requiredRoleSummary,
+      });
+
+      for (const assignment of shiftAssignments) {
+        if (assignment.status === "confirmed") {
+          day.totalConfirmed += 1;
+          locationEntry.confirmedCount += 1;
+        } else {
+          day.totalPending += 1;
+          locationEntry.pendingCount += 1;
+        }
+
+        let roleEntry = locationEntry.roleAssignments.find((item) => item.role === assignment.staffRole);
+        if (!roleEntry) {
+          roleEntry = {
+            role: assignment.staffRole,
+            confirmedUsers: [],
+            pendingUsers: [],
+          };
+          locationEntry.roleAssignments.push(roleEntry);
+        }
+        const userName = userMap.get(assignment.userId)?.name ?? assignment.userId;
+        if (assignment.status === "confirmed") {
+          roleEntry.confirmedUsers.push(userName);
+        } else {
+          roleEntry.pendingUsers.push(userName);
+        }
+      }
+
+      dayMap.set(shift.date, day);
+    }
+
+    const rows = [...dayMap.values()]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((day) => ({
+        ...day,
+        locations: day.locations
+          .map((location) => ({
+            ...location,
+            shifts: [...location.shifts].sort((a, b) =>
+              `${a.startTime}${a.endTime}`.localeCompare(`${b.startTime}${b.endTime}`),
+            ),
+            roleAssignments: [...location.roleAssignments].sort((a, b) => a.role.localeCompare(b.role)),
+          }))
+          .sort((a, b) => a.locationName.localeCompare(b.locationName)),
+      }));
+
+    trace.end({ days: rows.length });
+    return rows;
   }
 }
 

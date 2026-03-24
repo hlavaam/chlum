@@ -9,7 +9,11 @@ const RESOURCE_FILES = [
   ["locations", "locations.json"],
   ["events", "events.json"],
   ["shifts", "shifts.json"],
+  ["shift_presets", "shift-presets.json"],
   ["assignments", "assignments.json"],
+  ["invites", "invites.json"],
+  ["calendar_connections", "calendar-connections.json"],
+  ["calendar_syncs", "calendar-syncs.json"],
 ];
 
 function readJson(filePath) {

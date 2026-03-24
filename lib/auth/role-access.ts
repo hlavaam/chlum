@@ -13,7 +13,7 @@ export function isManagerRole(role: AppRole) {
 }
 
 export function canUseWorkRole(role: AppRole) {
-  return role === "brigadnik" || isAdminRole(role);
+  return role === "brigadnik" || isManagerRole(role);
 }
 
 export function hasRoleAccess(role: AppRole, allowedRoles: AppRole[]) {

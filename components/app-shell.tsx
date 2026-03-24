@@ -46,8 +46,25 @@ export function AppShell({ title: _title, subtitle, eyebrow, logoutPath, user, n
           <div className="user-chip">
             <strong>{user.name}</strong>
           </div>
-          <button className="button ghost" type="button" onClick={handleLogout}>
-            Odhlásit
+          <button className="icon-button logout-icon-button" type="button" onClick={handleLogout} aria-label="Odhlásit">
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path
+                d="M8 3.75h-2.5A1.75 1.75 0 0 0 3.75 5.5v9A1.75 1.75 0 0 0 5.5 16.25H8"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M11 6.5 14.5 10 11 13.5M14.5 10h-8"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="1.5"
+              />
+            </svg>
           </button>
         </div>
       </header>

@@ -1,8 +1,12 @@
 import type {
   AssignmentRecord,
   BaseRecord,
+  CalendarConnectionRecord,
+  CalendarSyncRecord,
   EventRecord,
+  InviteRecord,
   LocationRecord,
+  ShiftPresetRecord,
   ShiftRecord,
   UserRecord,
 } from "@/types/models";
@@ -129,4 +133,14 @@ export const usersRepository = new AdaptiveRepository<UserRecord>("users", "user
 export const locationsRepository = new AdaptiveRepository<LocationRecord>("locations", "locations.json");
 export const eventsRepository = new AdaptiveRepository<EventRecord>("events", "events.json");
 export const shiftsRepository = new AdaptiveRepository<ShiftRecord>("shifts", "shifts.json");
+export const shiftPresetsRepository = new AdaptiveRepository<ShiftPresetRecord>("shift_presets", "shift-presets.json");
 export const assignmentsRepository = new AdaptiveRepository<AssignmentRecord>("assignments", "assignments.json");
+export const invitesRepository = new AdaptiveRepository<InviteRecord>("invites", "invites.json");
+export const calendarConnectionsRepository = new AdaptiveRepository<CalendarConnectionRecord>(
+  "calendar_connections",
+  "calendar-connections.json",
+);
+export const calendarSyncsRepository = new AdaptiveRepository<CalendarSyncRecord>(
+  "calendar_syncs",
+  "calendar-syncs.json",
+);

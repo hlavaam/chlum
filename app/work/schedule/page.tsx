@@ -12,14 +12,20 @@ import {
   updateShiftAction,
 } from "@/lib/actions";
 import { requireRoles } from "@/lib/auth/rbac";
-import { SHIFT_TYPES, shiftTypeLabels } from "@/lib/constants";
+import { SHIFT_TYPES, STAFF_ROLES, staffRoleLabels, shiftTypeLabels } from "@/lib/constants";
 import { workPaths } from "@/lib/paths";
 import { assignmentsService } from "@/lib/services/assignments";
-import { getDayDetailsCached, getLocationsCached, getUsersCached } from "@/lib/services/cached-reads";
+import {
+  getDayDetailsCached,
+  getLocationsCached,
+  getUsersCached,
+  getWeekRosterCached,
+} from "@/lib/services/cached-reads";
 import type { DayShiftView } from "@/lib/services/schedule";
 import { shiftsService } from "@/lib/services/shifts";
-import { toDateKey } from "@/lib/utils";
+import { endOfWeek, formatCzDate, getWeekDays, parseDateKey, startOfWeek, toDateKey } from "@/lib/utils";
 import type { AssignmentRecord, ShiftRecord, UserRecord } from "@/types/models";
+import { WORK_SHIFT_PRESETS } from "@/lib/work-shift-presets";
 
 type Props = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -30,6 +36,10 @@ function readString(params: Record<string, string | string[] | undefined>, key: 
   return Array.isArray(value) ? value[0] : value;
 }
 
+function getRequiredCount(shift: ShiftRecord, role: (typeof STAFF_ROLES)[number]) {
+  return shift.requiredRoles.find((item) => item.role === role)?.count ?? 0;
+}
+
 async function WorkScheduleContent({ searchParams }: Props) {
   await requireRoles(["manager", "admin"], {
     loginPath: workPaths.login,
@@ -38,7 +48,12 @@ async function WorkScheduleContent({ searchParams }: Props) {
   const params = await searchParams;
   const date = readString(params, "date") || toDateKey(new Date());
   const tab = readString(params, "tab") === "admin" ? "admin" : "calendar";
+  const anchor = parseDateKey(date);
+  const weekStart = toDateKey(startOfWeek(anchor));
+  const weekEnd = toDateKey(endOfWeek(anchor));
+  const weekDays = getWeekDays(anchor);
   const locationsPromise = getLocationsCached();
+  const weekRosterPromise = getWeekRosterCached(weekStart, weekEnd);
   const emptyAdminData: [DayShiftView[], UserRecord[], ShiftRecord[], AssignmentRecord[]] = [[], [], [], []];
   const adminDataPromise: Promise<[DayShiftView[], UserRecord[], ShiftRecord[], AssignmentRecord[]]> = tab === "admin"
     ? Promise.all([
@@ -48,15 +63,75 @@ async function WorkScheduleContent({ searchParams }: Props) {
         assignmentsService.loadAll(),
       ])
     : Promise.resolve(emptyAdminData);
-  const [locations, [dayDetails, users, shifts, assignments]] = await Promise.all([
+  const [locations, weekRoster, [dayDetails, users, shifts, assignments]] = await Promise.all([
     locationsPromise,
+    weekRosterPromise,
     adminDataPromise,
   ]);
   const locationMap = new Map(locations.map((l) => [l.id, l]));
   const pendingAssignments = assignments.filter((a) => a.status === "pending");
+  const weekRosterMap = new Map(weekRoster.map((day) => [day.date, day]));
 
   return (
     <div className="stack gap-lg">
+      <section className="panel stack">
+        <div className="row between wrap">
+          <div>
+            <p className="eyebrow">Aktuální týden</p>
+            <h2>
+              Obsazení brigádníků {weekStart === weekEnd ? formatCzDate(weekStart) : `${formatCzDate(weekStart)} až ${formatCzDate(weekEnd)}`}
+            </h2>
+          </div>
+          <p className="subtle tiny">Nahoře je vždy týden podle právě otevřeného dne v plánování.</p>
+        </div>
+
+        <div className="calendar-grid week">
+          {weekDays.map((weekDate) => {
+            const day = weekRosterMap.get(weekDate);
+            return (
+              <article key={weekDate} className="day-card">
+                <div className="row between wrap">
+                  <strong>{formatCzDate(weekDate)}</strong>
+                  <AppLink className="chip chip-button day-open-link" href={workPaths.employeeDay(weekDate)}>
+                    Detail dne
+                  </AppLink>
+                </div>
+                {!day || day.locations.length === 0 ? (
+                  <p className="subtle tiny">Bez směny.</p>
+                ) : (
+                  day.locations.map((location) => (
+                    <div key={location.locationId} className="day-location-row">
+                      <div className="day-location-main">
+                        <p className="day-location-title">
+                          <strong>{location.locationName}</strong>
+                        </p>
+                        <p className="day-location-type">
+                          Potvrzeno {location.confirmedCount} / čeká {location.pendingCount}
+                        </p>
+                        {location.roleAssignments.map((roleAssignment) => (
+                          <p key={`${location.locationId}-${roleAssignment.role}`} className="tiny">
+                            <strong>{staffRoleLabels[roleAssignment.role]}:</strong>{" "}
+                            {roleAssignment.confirmedUsers.length > 0 ? roleAssignment.confirmedUsers.join(", ") : "nikdo"}
+                            {roleAssignment.pendingUsers.length > 0
+                              ? ` • čeká: ${roleAssignment.pendingUsers.join(", ")}`
+                              : ""}
+                          </p>
+                        ))}
+                        {location.shifts.map((shift) => (
+                          <p key={shift.shiftId} className="subtle tiny">
+                            {shift.startTime}–{shift.endTime} • {shiftTypeLabels[shift.type]} • {shift.requiredRoleSummary}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
       <section className="panel stack">
         <div className="row between wrap">
           <div>
@@ -88,113 +163,123 @@ async function WorkScheduleContent({ searchParams }: Props) {
           </AppLink>
         </div>
         {tab === "calendar" ? (
-          <form action={createShiftAction} className="grid-form">
-            <label>
-              Datum
-              <input type="date" name="dateFrom" defaultValue={date} required />
-            </label>
-            <label>
-              Typ dne / provozu
-              <select name="type" defaultValue="restaurant">
-                {SHIFT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {shiftTypeLabels[type]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Preset
-              <select name="preset" defaultValue="">
-                <option value="">Bez presetu</option>
-                <option value="restaurant_to_16">Restaurace do 16</option>
-                <option value="restaurant_full">Restaurace standard</option>
-                <option value="wedding_day">Svatba</option>
-                <option value="event_evening">Akce večer</option>
-              </select>
-            </label>
-            <label>
-              Pobočka
-              <select name="locationId" required>
-                {locations.map((location) => (
-                  <option key={location.id} value={location.id}>
-                    {location.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Čas od (volitelné, hodí se pro svatbu/event)
-              <input type="time" name="startTime" />
-            </label>
-            <FlexibleEndTimeFields timeLabel="Čas do (volitelné)" />
-            <label>
-              Min. lidí
-              <input type="number" min={0} name="minimumPeople" defaultValue={3} required />
-            </label>
-            <details className="full stack">
-              <summary className="subtle">Rozsah / opakování (volitelné)</summary>
-              <div className="grid-form">
-                <label>
-                  Do data
-                  <input type="date" name="dateTo" defaultValue={date} required />
+          <>
+            <form action={createShiftAction} className="grid-form">
+              <label>
+                Datum
+                <input type="date" name="dateFrom" defaultValue={date} required />
+              </label>
+              <label>
+                Typ dne / provozu
+                <select name="type" defaultValue="restaurant">
+                  {SHIFT_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {shiftTypeLabels[type]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Preset
+                <select name="preset" defaultValue="">
+                  <option value="">Bez presetu</option>
+                  {WORK_SHIFT_PRESETS.length === 0 ? <option value="" disabled>Presety zatím nejsou</option> : null}
+                  {WORK_SHIFT_PRESETS.map((preset) => (
+                    <option key={preset.key} value={preset.key}>
+                      {preset.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Pobočka
+                <select name="locationId" required>
+                  {locations.map((location) => (
+                    <option key={location.id} value={location.id}>
+                      {location.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Čas od (volitelné, hodí se pro svatbu/event)
+                <input type="time" name="startTime" />
+              </label>
+              <FlexibleEndTimeFields timeLabel="Čas do (volitelné)" />
+              <label>
+                Min. lidí
+                <input type="number" min={0} name="minimumPeople" defaultValue={3} required />
+              </label>
+              {STAFF_ROLES.map((role) => (
+                <label key={`create-role-${role}`}>
+                  {staffRoleLabels[role]} potřebujeme
+                  <input type="number" min={0} name={`${role}Count`} defaultValue={0} />
                 </label>
-                <fieldset className="full">
-                  <legend>Dny v týdnu (pro rozsah)</legend>
-                  <div className="checkbox-grid">
-                    <label className="checkbox-pill">
-                      <input type="checkbox" name="weekdays" value="mon" defaultChecked />
-                      <span>Po</span>
-                    </label>
-                    <label className="checkbox-pill">
-                      <input type="checkbox" name="weekdays" value="tue" defaultChecked />
-                      <span>Út</span>
-                    </label>
-                    <label className="checkbox-pill">
-                      <input type="checkbox" name="weekdays" value="wed" defaultChecked />
-                      <span>St</span>
-                    </label>
-                    <label className="checkbox-pill">
-                      <input type="checkbox" name="weekdays" value="thu" defaultChecked />
-                      <span>Čt</span>
-                    </label>
-                    <label className="checkbox-pill">
-                      <input type="checkbox" name="weekdays" value="fri" defaultChecked />
-                      <span>Pá</span>
-                    </label>
-                    <label className="checkbox-pill">
-                      <input type="checkbox" name="weekdays" value="sat" defaultChecked />
-                      <span>So</span>
-                    </label>
-                    <label className="checkbox-pill">
-                      <input type="checkbox" name="weekdays" value="sun" defaultChecked />
-                      <span>Ne</span>
-                    </label>
-                  </div>
-                </fieldset>
-                <div className="full stack">
+              ))}
+              <details className="full stack">
+                <summary className="subtle">Rozsah / opakování (volitelné)</summary>
+                <div className="grid-form">
                   <label>
-                    Konkrétní dny (volitelné)
-                    <span className="subtle">
-                      Naklikej libovolné dny. Když něco vybereš, použije se to místo rozsahu.
-                    </span>
+                    Do data
+                    <input type="date" name="dateTo" defaultValue={date} required />
                   </label>
-                  <DateMultiPicker name="customDates" initialDate={date} />
+                  <fieldset className="full">
+                    <legend>Dny v týdnu (pro rozsah)</legend>
+                    <div className="checkbox-grid">
+                      <label className="checkbox-pill">
+                        <input type="checkbox" name="weekdays" value="mon" defaultChecked />
+                        <span>Po</span>
+                      </label>
+                      <label className="checkbox-pill">
+                        <input type="checkbox" name="weekdays" value="tue" defaultChecked />
+                        <span>Út</span>
+                      </label>
+                      <label className="checkbox-pill">
+                        <input type="checkbox" name="weekdays" value="wed" defaultChecked />
+                        <span>St</span>
+                      </label>
+                      <label className="checkbox-pill">
+                        <input type="checkbox" name="weekdays" value="thu" defaultChecked />
+                        <span>Čt</span>
+                      </label>
+                      <label className="checkbox-pill">
+                        <input type="checkbox" name="weekdays" value="fri" defaultChecked />
+                        <span>Pá</span>
+                      </label>
+                      <label className="checkbox-pill">
+                        <input type="checkbox" name="weekdays" value="sat" defaultChecked />
+                        <span>So</span>
+                      </label>
+                      <label className="checkbox-pill">
+                        <input type="checkbox" name="weekdays" value="sun" defaultChecked />
+                        <span>Ne</span>
+                      </label>
+                    </div>
+                  </fieldset>
+                  <div className="full stack">
+                    <label>
+                      Konkrétní dny (volitelné)
+                      <span className="subtle">
+                        Naklikej libovolné dny. Když něco vybereš, použije se to místo rozsahu.
+                      </span>
+                    </label>
+                    <DateMultiPicker name="customDates" initialDate={date} />
+                  </div>
                 </div>
-              </div>
-            </details>
-            <label className="full">
-              Poznámka (např. „otevřeno jen do 4“)
-              <textarea name="notes" rows={2} placeholder="Volitelné" />
-            </label>
-            <label className="inline">
-              <input type="checkbox" name="requiresApproval" />
-              Vyžaduje schválení
-            </label>
-            <button type="submit" className="button">
-              Uložit provoz / dny
-            </button>
-          </form>
+              </details>
+              <label className="full">
+                Poznámka (např. „otevřeno jen do 4“)
+                <textarea name="notes" rows={2} placeholder="Volitelné" />
+              </label>
+              <label className="inline">
+                <input type="checkbox" name="requiresApproval" />
+                Vyžaduje schválení
+              </label>
+              <button type="submit" className="button">
+                Uložit provoz / dny
+              </button>
+            </form>
+          </>
         ) : null}
       </section>
 
@@ -218,6 +303,15 @@ async function WorkScheduleContent({ searchParams }: Props) {
                       Obsazení: {detail.occupancy.confirmed}/{detail.shift.minimumPeople}
                       {detail.occupancy.pending ? ` (+${detail.occupancy.pending} čeká)` : ""}
                     </p>
+                    {detail.shift.requiredRoles.length > 0 ? (
+                      <div className="chips">
+                        {detail.shift.requiredRoles.map((item) => (
+                          <span key={`${detail.shift.id}-${item.role}`} className="chip">
+                            {staffRoleLabels[item.role]} {item.count}x
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                   <form action={toggleShiftApprovalAction}>
                     <input type="hidden" name="shiftId" value={detail.shift.id} />
@@ -240,6 +334,13 @@ async function WorkScheduleContent({ searchParams }: Props) {
                           {u.name}
                         </option>
                       ))}
+                  </select>
+                  <select name="staffRole" defaultValue={detail.shift.requiredRoles[0]?.role ?? "plac"}>
+                    {STAFF_ROLES.map((role) => (
+                      <option key={`${detail.shift.id}-${role}`} value={role}>
+                        {staffRoleLabels[role]}
+                      </option>
+                    ))}
                   </select>
                   <button className="button" type="submit">
                     Ručně přidat
@@ -289,6 +390,17 @@ async function WorkScheduleContent({ searchParams }: Props) {
                       Min. lidí
                       <input type="number" min={0} name="minimumPeople" defaultValue={detail.shift.minimumPeople} required />
                     </label>
+                    {STAFF_ROLES.map((role) => (
+                      <label key={`${detail.shift.id}-${role}`}>
+                        {staffRoleLabels[role]} potřebujeme
+                        <input
+                          type="number"
+                          min={0}
+                          name={`${role}Count`}
+                          defaultValue={getRequiredCount(detail.shift, role)}
+                        />
+                      </label>
+                    ))}
                     <label className="full">
                       Poznámka
                       <textarea name="notes" rows={2} defaultValue={detail.shift.notes ?? ""} />
@@ -323,6 +435,7 @@ async function WorkScheduleContent({ searchParams }: Props) {
                     <thead>
                       <tr>
                         <th>Jméno</th>
+                        <th>Role na směně</th>
                         <th>Stav</th>
                         <th>Akce</th>
                       </tr>
@@ -330,7 +443,7 @@ async function WorkScheduleContent({ searchParams }: Props) {
                     <tbody>
                       {detail.assignments.length === 0 ? (
                         <tr>
-                          <td colSpan={3} className="subtle" data-label="">
+                          <td colSpan={4} className="subtle" data-label="">
                             Zatím nikdo přihlášen.
                           </td>
                         </tr>
@@ -338,6 +451,7 @@ async function WorkScheduleContent({ searchParams }: Props) {
                         detail.assignments.map((assignment) => (
                           <tr key={assignment.id}>
                             <td data-label="Jméno">{assignment.userName ?? assignment.userId}</td>
+                            <td data-label="Role na směně">{staffRoleLabels[assignment.staffRole] ?? assignment.staffRole}</td>
                             <td data-label="Stav">{assignment.status === "pending" ? "Čeká" : "Potvrzeno"}</td>
                             <td data-label="Akce">
                               <form action={updateAssignmentStatusAction} className="row gap-sm wrap admin-inline-form">
@@ -372,6 +486,7 @@ async function WorkScheduleContent({ searchParams }: Props) {
                     <th>Pobočka</th>
                     <th>Typ</th>
                     <th>Min</th>
+                    <th>Role mix</th>
                     <th>Approval</th>
                     <th>Poznámka</th>
                     <th>Akce</th>
@@ -389,6 +504,11 @@ async function WorkScheduleContent({ searchParams }: Props) {
                         <td data-label="Pobočka">{locationMap.get(shift.locationId)?.code}</td>
                         <td data-label="Typ">{shiftTypeLabels[shift.type]}</td>
                         <td data-label="Min">{shift.minimumPeople}</td>
+                        <td data-label="Role mix">
+                          {shift.requiredRoles.length > 0
+                            ? shift.requiredRoles.map((item) => `${staffRoleLabels[item.role]} ${item.count}x`).join(", ")
+                            : "volné"}
+                        </td>
                         <td data-label="Approval">{shift.requiresApproval ? "ano" : "ne"}</td>
                         <td data-label="Poznámka">{shift.notes ?? ""}</td>
                         <td data-label="Akce">

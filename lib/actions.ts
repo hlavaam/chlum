@@ -1,18 +1,37 @@
 "use server";
 
+import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
 import { canUseWorkRole, isManagerRole } from "@/lib/auth/role-access";
-import { APP_ROLES, AVAILABILITY_STATUSES, EVENT_TYPES, SHIFT_TYPES, STAFF_ROLES } from "@/lib/constants";
+import {
+  APP_ROLES,
+  AVAILABILITY_STATUSES,
+  EVENT_TYPES,
+  SHIFT_TYPES,
+  STAFF_ROLES,
+  WORK_DAY_PREFERENCES,
+  WORK_PERIODS,
+} from "@/lib/constants";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { requireRoles, requireUser } from "@/lib/auth/rbac";
 import { assignmentsService } from "@/lib/services/assignments";
+import { calendarConnectionsService } from "@/lib/services/calendar-connections";
+import { calendarSyncsService } from "@/lib/services/calendar-syncs";
 import { eventsService } from "@/lib/services/events";
+import {
+  deleteGoogleCalendarEventForAssignment,
+  syncGoogleCalendarForShift,
+  upsertGoogleCalendarEventForAssignment,
+} from "@/lib/services/google-calendar-sync";
+import { invitesService } from "@/lib/services/invites";
 import { locationsService } from "@/lib/services/locations";
 import { adminPaths, staffPaths, workPaths } from "@/lib/paths";
+import { upsertShiftForDate } from "@/lib/services/shift-upserts";
+import { shiftPresetsService } from "@/lib/services/shift-presets";
 import { shiftsService } from "@/lib/services/shifts";
 import { usersService } from "@/lib/services/users";
 import type {
@@ -22,10 +41,21 @@ import type {
   RoleRequirement,
   ShiftType,
   StaffRole,
+  WorkDayPreference,
+  WorkPeriod,
 } from "@/types/models";
-import { toDateKey } from "@/lib/utils";
+import { nowIso, toDateKey } from "@/lib/utils";
 
-type DataTag = "users" | "locations" | "events" | "shifts" | "assignments";
+type DataTag =
+  | "users"
+  | "locations"
+  | "events"
+  | "shifts"
+  | "shift_presets"
+  | "assignments"
+  | "invites"
+  | "calendar_connections"
+  | "calendar_syncs";
 
 function getString(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -109,62 +139,6 @@ function defaultShiftTimes(type: ShiftType, startTimeRaw: string, endTimeRaw: st
   };
 }
 
-function applyShiftPreset(input: {
-  preset: string;
-  type: ShiftType;
-  startTime: string;
-  endTime: string;
-  minimumPeople: number;
-  notes: string;
-}): {
-  type: ShiftType;
-  startTime: string;
-  endTime: string;
-  minimumPeople: number;
-  notes: string;
-} {
-  const presets: Record<string, Partial<typeof input>> = {
-    restaurant_to_16: {
-      type: "restaurant",
-      startTime: "10:00",
-      endTime: "16:00",
-      minimumPeople: 2,
-      notes: "Restaurace otevřeno do 16:00",
-    },
-    restaurant_full: {
-      type: "restaurant",
-      startTime: "10:00",
-      endTime: "22:00",
-      minimumPeople: 3,
-      notes: "Restaurace standard",
-    },
-    wedding_day: {
-      type: "wedding",
-      startTime: "12:00",
-      endTime: "23:00",
-      minimumPeople: 6,
-      notes: "Svatba",
-    },
-    event_evening: {
-      type: "event",
-      startTime: "16:00",
-      endTime: "22:00",
-      minimumPeople: 4,
-      notes: "Akce",
-    },
-  };
-
-  const preset = presets[input.preset];
-  if (!preset) return input;
-  return {
-    type: (preset.type as ShiftType) ?? input.type,
-    startTime: (preset.startTime as string) ?? input.startTime,
-    endTime: (preset.endTime as string) ?? input.endTime,
-    minimumPeople: (preset.minimumPeople as number) ?? input.minimumPeople,
-    notes: (preset.notes as string) ?? input.notes,
-  };
-}
-
 function parseRoleRequirements(formData: FormData): RoleRequirement[] {
   return STAFF_ROLES.map((role) => ({
     role,
@@ -173,14 +147,82 @@ function parseRoleRequirements(formData: FormData): RoleRequirement[] {
 }
 
 function redirectBack(formData: FormData, fallback: string) {
-  const target = getString(formData, "redirectTo") || fallback;
-  redirect(target);
+  redirect(getRedirectTarget(formData, fallback));
+}
+
+function getRedirectTarget(formData: FormData, fallback: string) {
+  return getString(formData, "redirectTo") || fallback;
+}
+
+function appendQueryParam(path: string, key: string, value: string) {
+  const url = new URL(path, "https://work.local");
+  url.searchParams.set(key, value);
+  return `${url.pathname}${url.search}`;
+}
+
+function redirectBackWithQuery(formData: FormData, fallback: string, key: string, value: string) {
+  redirect(appendQueryParam(getRedirectTarget(formData, fallback), key, value));
 }
 
 function revalidateDataTags(...tags: DataTag[]) {
   for (const tag of new Set(tags)) {
     revalidateTag(tag);
   }
+}
+
+function resolveRequiredRoles(formData: FormData, fallback: RoleRequirement[]) {
+  const explicit = parseRoleRequirements(formData);
+  return explicit.length > 0 ? explicit : fallback;
+}
+
+async function safeUpsertCalendarEvent(userId: string, shiftId: string) {
+  try {
+    await upsertGoogleCalendarEventForAssignment(userId, shiftId);
+    revalidateDataTags("calendar_syncs");
+  } catch (error) {
+    console.error("calendar.upsert_failed", { userId, shiftId, error });
+  }
+}
+
+async function safeDeleteCalendarEvent(userId: string, shiftId: string) {
+  try {
+    await deleteGoogleCalendarEventForAssignment(userId, shiftId);
+    revalidateDataTags("calendar_syncs");
+  } catch (error) {
+    console.error("calendar.delete_failed", { userId, shiftId, error });
+  }
+}
+
+async function safeSyncCalendarForShift(shiftId: string) {
+  try {
+    await syncGoogleCalendarForShift(shiftId);
+    revalidateDataTags("calendar_syncs");
+  } catch (error) {
+    console.error("calendar.shift_sync_failed", { shiftId, error });
+  }
+}
+
+async function safeDeleteCalendarEventsForShift(shiftId: string) {
+  const assignments = await assignmentsService.forShift(shiftId);
+  for (const assignment of assignments) {
+    await safeDeleteCalendarEvent(assignment.userId, shiftId);
+  }
+}
+
+async function safeDisconnectCalendarForUser(userId: string) {
+  const assignments = await assignmentsService.forUser(userId);
+  for (const assignment of assignments) {
+    await safeDeleteCalendarEvent(userId, assignment.shiftId);
+  }
+  const connection = await calendarConnectionsService.findGoogleByUser(userId);
+  if (connection) {
+    await calendarConnectionsService.delete(connection.id);
+  }
+  const syncRows = await calendarSyncsService.forUser(userId);
+  for (const row of syncRows) {
+    await calendarSyncsService.delete(row.id);
+  }
+  revalidateDataTags("calendar_connections", "calendar_syncs");
 }
 
 export async function loginAction(formData: FormData) {
@@ -228,9 +270,12 @@ export async function signupShiftAction(formData: FormData) {
   }
   const shiftId = getString(formData, "shiftId");
   const date = getString(formData, "date");
-  const role: StaffRole = user.preferredRoles[0] ?? "service";
-  await shiftsService.signup(shiftId, user, role);
-  revalidateDataTags("assignments", "shifts");
+  const role: StaffRole = user.preferredRoles[0] ?? "plac";
+  const assignment = await shiftsService.signup(shiftId, user, role);
+  if (assignment.status === "confirmed") {
+    await safeUpsertCalendarEvent(user.id, shiftId);
+  }
+  revalidateDataTags("assignments", "shifts", "calendar_syncs");
   revalidatePath(staffPaths.employees);
   revalidatePath(staffPaths.employeeDay(date));
   revalidatePath(staffPaths.employeesMy);
@@ -244,7 +289,8 @@ export async function unassignShiftAction(formData: FormData) {
   const shiftId = getString(formData, "shiftId");
   const date = getString(formData, "date");
   await shiftsService.unassign(shiftId, user.id);
-  revalidateDataTags("assignments", "shifts");
+  await safeDeleteCalendarEvent(user.id, shiftId);
+  revalidateDataTags("assignments", "shifts", "calendar_syncs");
   revalidatePath(staffPaths.employees);
   revalidatePath(staffPaths.employeeDay(date));
   revalidatePath(staffPaths.employeesMy);
@@ -255,10 +301,61 @@ export async function updateMyPreferencesAction(formData: FormData) {
   const roles = getStringArray(formData, "preferredRoles").filter((role): role is StaffRole =>
     STAFF_ROLES.includes(role as StaffRole),
   );
-  await usersService.updatePreferences(user.id, roles);
+  const excludedRoles = getStringArray(formData, "excludedRoles").filter((role): role is StaffRole =>
+    STAFF_ROLES.includes(role as StaffRole),
+  );
+  const workPeriods = getStringArray(formData, "workPeriods").filter((value): value is WorkPeriod =>
+    WORK_PERIODS.includes(value as WorkPeriod),
+  );
+  const workDayPreferences = getStringArray(formData, "workDayPreferences").filter((value): value is WorkDayPreference =>
+    WORK_DAY_PREFERENCES.includes(value as WorkDayPreference),
+  );
+  await usersService.update(user.id, {
+    preferredRoles: roles,
+    excludedRoles,
+    workPeriods,
+    workDayPreferences,
+    onboardingCompleted: true,
+  });
   revalidateDataTags("users");
   revalidatePath(staffPaths.employeesMy);
-  redirect(staffPaths.employeesMy);
+  revalidatePath(workPaths.profile);
+  redirectBackWithQuery(formData, staffPaths.employeesMy, "saved", "preferences");
+}
+
+export async function updateMyAccountAction(formData: FormData) {
+  const user = await requireUser({ loginPath: workPaths.login });
+  const name = getString(formData, "name");
+  const email = getString(formData, "email").toLowerCase();
+  const password = getString(formData, "password");
+
+  if (!name) {
+    redirectBackWithQuery(formData, workPaths.profile, "error", "account_name");
+  }
+  if (!email || !email.includes("@")) {
+    redirectBackWithQuery(formData, workPaths.profile, "error", "account_email");
+  }
+
+  const existing = await usersService.findByEmail(email);
+  if (existing && existing.id !== user.id) {
+    redirectBackWithQuery(formData, workPaths.profile, "error", "account_exists");
+  }
+
+  if (password && password.length < 6) {
+    redirectBackWithQuery(formData, workPaths.profile, "error", "account_password");
+  }
+
+  await usersService.update(user.id, {
+    name,
+    email,
+    ...(password ? { passwordHash: hashPassword(password) } : {}),
+  });
+
+  revalidateDataTags("users");
+  revalidatePath(workPaths.profile);
+  revalidatePath(staffPaths.employeesMy);
+  revalidatePath(staffPaths.employees);
+  redirectBackWithQuery(formData, workPaths.profile, "saved", "account");
 }
 
 export async function updateAvailabilityAction(formData: FormData) {
@@ -278,49 +375,53 @@ export async function createShiftAction(formData: FormData) {
   await requireRoles(["manager", "admin"]);
   const rawType = getString(formData, "type") as ShiftType;
   const preset = getString(formData, "preset");
+  const presetDefinition = preset ? await shiftPresetsService.findById(preset) : null;
   const fallbackType: ShiftType = SHIFT_TYPES.includes(rawType) ? rawType : "restaurant";
   const dateFrom = getString(formData, "dateFrom") || getString(formData, "date");
   const dateTo = getString(formData, "dateTo") || dateFrom;
   const customDates = parseCustomDates(getString(formData, "customDates"));
   const targetDates =
     customDates.length > 0 ? customDates : enumerateDates(dateFrom, dateTo, parseWeekdaySet(formData));
-  const minimumPeopleInput = getNumber(formData, "minimumPeople");
   const baseTimes = defaultShiftTimes(
     fallbackType,
     getString(formData, "startTime"),
     getString(formData, "endTime"),
   );
-  const merged = applyShiftPreset({
-    preset,
-    type: fallbackType,
-    startTime: baseTimes.startTime,
-    endTime: baseTimes.endTime,
-    minimumPeople: getNumber(formData, "minimumPeople"),
-    notes: getString(formData, "notes"),
-  });
-  const locationId = getString(formData, "locationId");
+  const merged = presetDefinition
+    ? {
+        locationId: presetDefinition.locationId,
+        type: presetDefinition.type,
+        startTime: presetDefinition.startTime,
+        endTime: presetDefinition.endTime,
+        minimumPeople: presetDefinition.requiredRoles.reduce((total, item) => total + item.count, 0),
+        notes: presetDefinition.notes,
+      }
+    : {
+        locationId: "",
+        type: fallbackType,
+        startTime: baseTimes.startTime,
+        endTime: baseTimes.endTime,
+        minimumPeople: getNumber(formData, "minimumPeople"),
+        notes: getString(formData, "notes"),
+      };
+  const locationId = getString(formData, "locationId") || merged.locationId;
   const endTime = isFlexibleEndTime(formData) ? "dle situace" : merged.endTime;
-  const allShifts = await shiftsService.loadAll();
+  const requiredRoles = resolveRequiredRoles(formData, presetDefinition?.requiredRoles ?? []);
+  const requiresApproval = getString(formData, "requiresApproval") === "on";
 
   for (const date of targetDates.length ? targetDates : [dateFrom]) {
     if (!date) continue;
-    const existing = allShifts.find((shift) => shift.date === date && shift.locationId === locationId);
-    const payload = {
+    await upsertShiftForDate({
       date,
       startTime: merged.startTime,
       endTime,
       locationId,
       type: merged.type,
-      requiredRoles: [],
-      minimumPeople: Math.max(0, minimumPeopleInput),
-      requiresApproval: getString(formData, "requiresApproval") === "on",
+      requiredRoles,
+      minimumPeople: Math.max(0, merged.minimumPeople),
+      requiresApproval,
       notes: merged.notes || undefined,
-    };
-    if (existing) {
-      await shiftsService.update(existing.id, payload);
-    } else {
-      await shiftsService.create(payload);
-    }
+    });
   }
   revalidateDataTags("shifts");
   revalidatePath(staffPaths.adminSchedule);
@@ -385,8 +486,16 @@ export async function updateAssignmentStatusAction(formData: FormData) {
   const assignmentId = getString(formData, "assignmentId");
   const status = getString(formData, "status");
   if (status !== "confirmed" && status !== "pending") redirect(staffPaths.adminSchedule);
+  const assignment = await assignmentsService.findById(assignmentId);
   await assignmentsService.setStatus(assignmentId, status);
-  revalidateDataTags("assignments");
+  if (assignment) {
+    if (status === "confirmed") {
+      await safeUpsertCalendarEvent(assignment.userId, assignment.shiftId);
+    } else {
+      await safeDeleteCalendarEvent(assignment.userId, assignment.shiftId);
+    }
+  }
+  revalidateDataTags("assignments", "calendar_syncs");
   revalidatePath(staffPaths.adminSchedule);
   revalidatePath(staffPaths.employees);
   redirect(staffPaths.adminSchedule);
@@ -397,8 +506,12 @@ export async function removeAssignmentAction(formData: FormData) {
   const assignmentId = getString(formData, "assignmentId");
   const date = getString(formData, "date");
   if (!assignmentId) redirect(staffPaths.adminSchedule);
+  const assignment = await assignmentsService.findById(assignmentId);
   await assignmentsService.delete(assignmentId);
-  revalidateDataTags("assignments");
+  if (assignment) {
+    await safeDeleteCalendarEvent(assignment.userId, assignment.shiftId);
+  }
+  revalidateDataTags("assignments", "calendar_syncs");
   revalidatePath(staffPaths.adminSchedule);
   revalidatePath(staffPaths.employees);
   if (date) revalidatePath(staffPaths.employeeDay(date));
@@ -411,8 +524,13 @@ export async function manualAssignAction(formData: FormData) {
   const userId = getString(formData, "userId");
   const user = await usersService.findById(userId);
   if (!user) redirect(staffPaths.adminSchedule);
-  await shiftsService.signup(shiftId, user, user.preferredRoles[0] ?? "service", "confirmed");
-  revalidateDataTags("assignments", "shifts");
+  const requestedRole = getString(formData, "staffRole");
+  const staffRole = STAFF_ROLES.includes(requestedRole as StaffRole)
+    ? (requestedRole as StaffRole)
+    : user.preferredRoles[0] ?? "plac";
+  await shiftsService.signup(shiftId, user, staffRole, "confirmed");
+  await safeUpsertCalendarEvent(user.id, shiftId);
+  revalidateDataTags("assignments", "shifts", "calendar_syncs");
   revalidatePath(staffPaths.adminSchedule);
   revalidatePath(staffPaths.employees);
   redirect(staffPaths.adminSchedule);
@@ -435,6 +553,7 @@ export async function updateShiftAction(formData: FormData) {
   const minimumPeople = Math.max(0, getNumber(formData, "minimumPeople", shift.minimumPeople));
   const notes = getString(formData, "notes");
   const requiresApproval = getString(formData, "requiresApproval") === "on";
+  const requiredRoles = resolveRequiredRoles(formData, shift.requiredRoles);
 
   await shiftsService.update(shiftId, {
     date: nextDate,
@@ -442,12 +561,14 @@ export async function updateShiftAction(formData: FormData) {
     startTime,
     endTime,
     locationId,
+    requiredRoles,
     minimumPeople,
     requiresApproval,
     notes: notes || undefined,
   });
+  await safeSyncCalendarForShift(shiftId);
 
-  revalidateDataTags("shifts");
+  revalidateDataTags("shifts", "calendar_syncs");
   revalidatePath(staffPaths.adminSchedule);
   revalidatePath(staffPaths.employees);
   revalidatePath(staffPaths.employeeDay(shift.date));
@@ -459,8 +580,9 @@ export async function deleteShiftAction(formData: FormData) {
   await requireRoles(["manager", "admin"]);
   const shiftId = getString(formData, "shiftId");
   const date = getString(formData, "date");
+  await safeDeleteCalendarEventsForShift(shiftId);
   await shiftsService.deleteCascade(shiftId);
-  revalidateDataTags("shifts", "assignments");
+  revalidateDataTags("shifts", "assignments", "calendar_syncs");
   revalidatePath(staffPaths.adminSchedule);
   revalidatePath(staffPaths.employees);
   if (date) revalidatePath(staffPaths.employeeDay(date));
@@ -468,7 +590,7 @@ export async function deleteShiftAction(formData: FormData) {
 }
 
 export async function createLocationAction(formData: FormData) {
-  await requireRoles(["admin"]);
+  await requireRoles(["manager", "admin"]);
   await locationsService.create({
     name: getString(formData, "name"),
     code: getString(formData, "code"),
@@ -481,8 +603,44 @@ export async function createLocationAction(formData: FormData) {
   redirect(staffPaths.adminPeople);
 }
 
+export async function createShiftPresetAction(formData: FormData) {
+  const manager = await requireRoles(["manager", "admin"]);
+  const rawType = getString(formData, "type") as ShiftType;
+  const type: ShiftType = SHIFT_TYPES.includes(rawType) ? rawType : "restaurant";
+  const startTime = normalizeTimeInput(getString(formData, "startTime")) || defaultShiftTimes(type, "", "").startTime;
+  const endTime = isFlexibleEndTime(formData)
+    ? "dle situace"
+    : normalizeTimeInput(getString(formData, "endTime")) || defaultShiftTimes(type, "", "").endTime;
+  const locationId = getString(formData, "locationId");
+  if (!locationId) redirect(staffPaths.employees);
+  await shiftPresetsService.create({
+    name: getString(formData, "name"),
+    description: getString(formData, "description") || undefined,
+    locationId,
+    type,
+    startTime,
+    endTime,
+    requiredRoles: parseRoleRequirements(formData),
+    notes: getString(formData, "notes") || undefined,
+    createdByUserId: manager.id,
+  });
+  revalidateDataTags("shift_presets");
+  revalidatePath(staffPaths.employees);
+  redirectBackWithQuery(formData, staffPaths.employees, "presetCreated", "1");
+}
+
+export async function deleteShiftPresetAction(formData: FormData) {
+  await requireRoles(["manager", "admin"]);
+  const presetId = getString(formData, "presetId");
+  if (!presetId) redirect(staffPaths.employees);
+  await shiftPresetsService.delete(presetId);
+  revalidateDataTags("shift_presets");
+  revalidatePath(staffPaths.employees);
+  redirectBackWithQuery(formData, staffPaths.employees, "presetDeleted", "1");
+}
+
 export async function updateLocationAction(formData: FormData) {
-  await requireRoles(["admin"]);
+  await requireRoles(["manager", "admin"]);
   const locationId = getString(formData, "locationId");
   if (!locationId) redirect(staffPaths.adminPeople);
   await locationsService.update(locationId, {
@@ -498,7 +656,7 @@ export async function updateLocationAction(formData: FormData) {
 }
 
 export async function createUserAction(formData: FormData) {
-  await requireRoles(["admin"]);
+  await requireRoles(["manager", "admin"]);
   const role = getString(formData, "role") as AppRole;
   if (!APP_ROLES.includes(role)) redirect(staffPaths.adminPeople);
   const locationIds = getStringArray(formData, "locationIds");
@@ -511,6 +669,10 @@ export async function createUserAction(formData: FormData) {
     active: true,
     locationIds,
     preferredRoles: [],
+    excludedRoles: [],
+    workPeriods: [],
+    workDayPreferences: [],
+    onboardingCompleted: false,
     availabilityByDate: {},
   });
   revalidateDataTags("users");
@@ -518,8 +680,102 @@ export async function createUserAction(formData: FormData) {
   redirect(staffPaths.adminPeople);
 }
 
+export async function createInviteAction(formData: FormData) {
+  const manager = await requireRoles(["manager", "admin"]);
+  const role = getString(formData, "role") as AppRole;
+  const label = getString(formData, "label");
+  if (!APP_ROLES.includes(role)) redirect(staffPaths.adminPeople);
+
+  const locationIds = getStringArray(formData, "locationIds");
+  const token = randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 21).toISOString();
+  await invitesService.create({
+    token,
+    label: label || undefined,
+    role,
+    locationIds,
+    createdByUserId: manager.id,
+    expiresAt,
+    reusable: true,
+    useCount: 0,
+    note: getString(formData, "note") || undefined,
+  });
+  revalidateDataTags("invites");
+  revalidatePath(staffPaths.adminPeople);
+  redirect(`${staffPaths.adminPeople}?inviteCreated=1`);
+}
+
+export async function deleteInviteAction(formData: FormData) {
+  await requireRoles(["manager", "admin"]);
+  const inviteId = getString(formData, "inviteId");
+  if (!inviteId) redirect(staffPaths.adminPeople);
+  await invitesService.delete(inviteId);
+  revalidateDataTags("invites");
+  revalidatePath(staffPaths.adminPeople);
+  redirect(staffPaths.adminPeople);
+}
+
+export async function completeInviteAction(formData: FormData) {
+  const token = getString(formData, "token");
+  const invite = await invitesService.findByToken(token);
+  const overLimit = typeof invite?.maxUses === "number" && invite.useCount >= invite.maxUses;
+  if (!invite || invite.expiresAt < nowIso() || overLimit) {
+    redirect("/work?error=invite");
+  }
+
+  const email = (invite.email || getString(formData, "email")).toLowerCase();
+  if (!email) {
+    redirect(`/work/join/${token}?error=email`);
+  }
+
+  const existingUser = await usersService.findByEmail(email);
+  if (existingUser) {
+    redirect(`/work/join/${token}?error=exists`);
+  }
+
+  const password = getString(formData, "password");
+  const preferredRoles = getStringArray(formData, "preferredRoles").filter((role): role is StaffRole =>
+    STAFF_ROLES.includes(role as StaffRole),
+  );
+  const excludedRoles = getStringArray(formData, "excludedRoles").filter((role): role is StaffRole =>
+    STAFF_ROLES.includes(role as StaffRole),
+  );
+  const workPeriods = getStringArray(formData, "workPeriods").filter((value): value is WorkPeriod =>
+    WORK_PERIODS.includes(value as WorkPeriod),
+  );
+  const workDayPreferences = getStringArray(formData, "workDayPreferences").filter((value): value is WorkDayPreference =>
+    WORK_DAY_PREFERENCES.includes(value as WorkDayPreference),
+  );
+
+  if (!password || password.length < 6) {
+    redirect(`/work/join/${token}?error=password`);
+  }
+
+  const user = await usersService.create({
+    name: getString(formData, "name"),
+    email,
+    passwordHash: hashPassword(password),
+    role: invite.role,
+    active: true,
+    locationIds: invite.locationIds,
+    preferredRoles,
+    excludedRoles,
+    workPeriods,
+    workDayPreferences,
+    onboardingCompleted: true,
+    availabilityByDate: {},
+  });
+  await invitesService.update(invite.id, {
+    usedAt: nowIso(),
+    useCount: invite.useCount + 1,
+  });
+  revalidateDataTags("users", "invites");
+  await setSessionCookie(user.id);
+  redirect(`${workPaths.profile}?welcome=1`);
+}
+
 export async function updateUserRoleAction(formData: FormData) {
-  await requireRoles(["admin"]);
+  await requireRoles(["manager", "admin"]);
   const userId = getString(formData, "userId");
   const role = getString(formData, "role") as AppRole;
   if (!APP_ROLES.includes(role)) redirect(staffPaths.adminPeople);
@@ -530,7 +786,7 @@ export async function updateUserRoleAction(formData: FormData) {
 }
 
 export async function updateUserPasswordAction(formData: FormData) {
-  await requireRoles(["admin"]);
+  await requireRoles(["manager", "admin"]);
   const userId = getString(formData, "userId");
   const password = getString(formData, "password");
   if (!userId || password.length < 6) redirect(staffPaths.adminPeople);
@@ -541,14 +797,23 @@ export async function updateUserPasswordAction(formData: FormData) {
 }
 
 export async function deleteUserAction(formData: FormData) {
-  const admin = await requireRoles(["admin"]);
+  const admin = await requireRoles(["manager", "admin"]);
   const userId = getString(formData, "userId");
   if (!userId || userId === admin.id) redirect(staffPaths.adminPeople);
+  await safeDisconnectCalendarForUser(userId);
   await assignmentsService.deleteForUser(userId);
   await usersService.delete(userId);
-  revalidateDataTags("users", "assignments");
+  revalidateDataTags("users", "assignments", "calendar_connections", "calendar_syncs");
   revalidatePath(staffPaths.adminPeople);
   revalidatePath(staffPaths.adminSchedule);
   revalidatePath(staffPaths.employees);
   redirect(staffPaths.adminPeople);
+}
+
+export async function disconnectGoogleCalendarAction(formData: FormData) {
+  const user = await requireUser({ loginPath: workPaths.login });
+  await safeDisconnectCalendarForUser(user.id);
+  revalidatePath(staffPaths.employeesMy);
+  revalidatePath(workPaths.profile);
+  redirectBackWithQuery(formData, staffPaths.employeesMy, "google", "disconnected");
 }

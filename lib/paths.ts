@@ -3,6 +3,7 @@ export const workPaths = {
   login: "/work",
   employees: "/work/employees",
   employeesMy: "/work/employees/my",
+  profile: "/work/profile",
   employeeDay: (date: string) => `/work/employees/day/${date}`,
   schedule: "/work/schedule",
   scheduleWithParams: (params: { date?: string; tab?: "calendar" | "admin" } = {}) => {
@@ -14,6 +15,7 @@ export const workPaths = {
   },
   events: "/work/events",
   people: "/work/people",
+  join: (token: string) => `/work/join/${token}`,
 } as const;
 
 export const adminPaths = {
