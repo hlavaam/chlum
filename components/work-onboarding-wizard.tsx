@@ -14,16 +14,13 @@ import {
 
 type Props = {
   token: string;
-  inviteLabel?: string;
   inviteEmail?: string;
-  inviteUseCount: number;
-  inviteMaxUses?: number;
   error?: string;
 };
 
-type StepId = "intro" | "name" | "email" | "password" | "preferred" | "excluded" | "periods" | "days";
+type StepId = "intro" | "name" | "email" | "password" | "preferred" | "excluded" | "periods" | "days" | "finish";
 
-const STEPS: StepId[] = ["intro", "name", "email", "password", "preferred", "excluded", "periods", "days"];
+const STEPS: StepId[] = ["intro", "name", "email", "password", "preferred", "excluded", "periods", "days", "finish"];
 
 function toggleValue(values: string[], value: string) {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
@@ -31,10 +28,7 @@ function toggleValue(values: string[], value: string) {
 
 export function WorkOnboardingWizard({
   token,
-  inviteLabel,
   inviteEmail,
-  inviteUseCount,
-  inviteMaxUses,
   error,
 }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
@@ -83,24 +77,7 @@ export function WorkOnboardingWizard({
           {step === "intro" ? (
             <div className="wizard-screen active">
               <div className="wizard-center">
-                <p className="wizard-kicker">Sdílený náborový vstup</p>
                 <h1>Chlum onboarding</h1>
-                <p className="public-lead">
-                  Krátký animovaný průvodce pro založení brigádnického účtu. Na konci bude mít manager rovnou tvoje preference,
-                  termíny i dny, které ti sedí.
-                </p>
-                <div className="wizard-info-row">
-                  <div className="wizard-info-pill">
-                    <span>Odkaz</span>
-                    <strong>{inviteLabel ?? "Sdílený onboarding"}</strong>
-                  </div>
-                  <div className="wizard-info-pill">
-                    <span>Použito</span>
-                    <strong>
-                      {inviteUseCount}x{typeof inviteMaxUses === "number" ? ` / ${inviteMaxUses}x` : ""}
-                    </strong>
-                  </div>
-                </div>
               </div>
             </div>
           ) : null}
@@ -234,6 +211,15 @@ export function WorkOnboardingWizard({
             </div>
           ) : null}
 
+          {step === "finish" ? (
+            <div className="wizard-screen active">
+              <div className="wizard-center">
+                <h2>Hotovo</h2>
+                <p className="public-lead">Účet je připravený. Po vstupu půjdeš rovnou do kalendáře.</p>
+              </div>
+            </div>
+          ) : null}
+
           {error === "exists" ? <p className="alert">Uživatel s tímto e-mailem už existuje.</p> : null}
           {error === "email" ? <p className="alert">Doplň prosím e-mail.</p> : null}
           {error === "password" ? <p className="alert">Heslo musí mít aspoň 6 znaků.</p> : null}
@@ -263,7 +249,7 @@ export function WorkOnboardingWizard({
               </button>
               {isLastStep ? (
                 <button type="submit" className="button">
-                  Dokončit účet
+                  Vstoupit do aplikace
                 </button>
               ) : (
                 <button type="button" className="button" onClick={nextStep} disabled={!canContinue()}>

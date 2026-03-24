@@ -146,6 +146,10 @@ function parseRoleRequirements(formData: FormData): RoleRequirement[] {
   })).filter((item) => item.count > 0);
 }
 
+function sumRoleRequirements(requiredRoles: RoleRequirement[]) {
+  return requiredRoles.reduce((total, item) => total + item.count, 0);
+}
+
 function redirectBack(formData: FormData, fallback: string) {
   redirect(getRedirectTarget(formData, fallback));
 }
@@ -393,7 +397,6 @@ export async function createShiftAction(formData: FormData) {
         type: presetDefinition.type,
         startTime: presetDefinition.startTime,
         endTime: presetDefinition.endTime,
-        minimumPeople: presetDefinition.requiredRoles.reduce((total, item) => total + item.count, 0),
         notes: presetDefinition.notes,
       }
     : {
@@ -401,12 +404,12 @@ export async function createShiftAction(formData: FormData) {
         type: fallbackType,
         startTime: baseTimes.startTime,
         endTime: baseTimes.endTime,
-        minimumPeople: getNumber(formData, "minimumPeople"),
         notes: getString(formData, "notes"),
       };
   const locationId = getString(formData, "locationId") || merged.locationId;
   const endTime = isFlexibleEndTime(formData) ? "dle situace" : merged.endTime;
   const requiredRoles = resolveRequiredRoles(formData, presetDefinition?.requiredRoles ?? []);
+  const minimumPeople = sumRoleRequirements(requiredRoles);
   const requiresApproval = getString(formData, "requiresApproval") === "on";
 
   for (const date of targetDates.length ? targetDates : [dateFrom]) {
@@ -418,7 +421,7 @@ export async function createShiftAction(formData: FormData) {
       locationId,
       type: merged.type,
       requiredRoles,
-      minimumPeople: Math.max(0, merged.minimumPeople),
+      minimumPeople,
       requiresApproval,
       notes: merged.notes || undefined,
     });
@@ -550,10 +553,10 @@ export async function updateShiftAction(formData: FormData) {
     ? "dle situace"
     : normalizeTimeInput(getString(formData, "endTime")) || shift.endTime;
   const locationId = getString(formData, "locationId") || shift.locationId;
-  const minimumPeople = Math.max(0, getNumber(formData, "minimumPeople", shift.minimumPeople));
   const notes = getString(formData, "notes");
   const requiresApproval = getString(formData, "requiresApproval") === "on";
   const requiredRoles = resolveRequiredRoles(formData, shift.requiredRoles);
+  const minimumPeople = sumRoleRequirements(requiredRoles);
 
   await shiftsService.update(shiftId, {
     date: nextDate,
@@ -771,7 +774,7 @@ export async function completeInviteAction(formData: FormData) {
   });
   revalidateDataTags("users", "invites");
   await setSessionCookie(user.id);
-  redirect(`${workPaths.profile}?welcome=1`);
+  redirect(`${workPaths.employees}?welcome=1`);
 }
 
 export async function updateUserRoleAction(formData: FormData) {

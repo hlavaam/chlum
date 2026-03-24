@@ -48,6 +48,19 @@ function getAssignedCount(
   return assignments.filter((assignment) => assignment.staffRole === role).length;
 }
 
+function getDisplayRoles(
+  shift: {
+    requiredRoles: Array<{
+      role: (typeof STAFF_ROLES)[number];
+      count: number;
+    }>;
+  },
+) {
+  return shift.requiredRoles.length > 0
+    ? shift.requiredRoles.filter((item) => item.count > 0)
+    : STAFF_ROLES.map((role) => ({ role, count: 0 }));
+}
+
 export async function DayDetailView({ date, user, redirectTo, closeHref, embedded = false }: DayDetailViewProps) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound();
 
@@ -79,7 +92,7 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                   </AppLink>
                 ) : null}
                 {closeHref ? (
-                  <AppLink className="icon-button modal-close-button" href={closeHref} aria-label="Zavřít detail dne">
+                  <AppLink className="icon-button modal-close-button" href={closeHref} scroll={false} aria-label="Zavřít detail dne">
                     <span aria-hidden>×</span>
                   </AppLink>
                 ) : null}
@@ -146,10 +159,6 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                   ))}
                 </select>
               </label>
-              <label>
-                Min. lidí
-                <input type="number" min={0} name="minimumPeople" defaultValue={2} required />
-              </label>
               {STAFF_ROLES.map((role) => (
                 <label key={`new-shift-${role}`}>
                   {staffRoleLabels[role]} potřebujeme
@@ -186,25 +195,19 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
 
         {details.map(({ shift, assignments, occupancy }) => {
           const myAssignment = assignments.find((a) => a.userId === user.id);
+          const displayRoles = getDisplayRoles(shift);
           return (
             <article className="panel stack" key={shift.id}>
-              <div className="row between wrap">
-                <div>
-                  <p className="row gap-sm align-center">
+              <div className="row between wrap align-start">
+                <div className="stack gap-sm">
+                  <p className="row gap-sm align-center wrap">
                     <ShiftTypeBadge type={shift.type} />
-                    <strong>{formatTimeRange(shift.startTime, shift.endTime)}</strong>
-                    <span className="subtle">{locationMap.get(shift.locationId)?.name}</span>
+                    <span className="shift-detail-time">{formatTimeRange(shift.startTime, shift.endTime)}</span>
+                  </p>
+                  <p className="subtle">
+                    <strong>{locationMap.get(shift.locationId)?.name}</strong>
                   </p>
                   {shift.notes ? <p className="subtle">Poznámka: {shift.notes}</p> : null}
-                  {shift.requiredRoles.length > 0 ? (
-                    <div className="chips">
-                      {shift.requiredRoles.map((item) => (
-                        <span key={`${shift.id}-${item.role}`} className="chip">
-                          {staffRoleLabels[item.role]} {item.count}x
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
                 <div className="stack align-end">
                   <div className="metric">
@@ -222,13 +225,19 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                 {canSelfAssign ? (
                   myAssignment ? (
                     <>
-                      <span className="chip">Přihlášený jako {staffRoleLabels[myAssignment.staffRole]}</span>
+                      <div className="chips">
+                        {displayRoles.map((item) => (
+                          <span key={`${shift.id}-filled-${item.role}`} className="chip">
+                            {staffRoleLabels[item.role]} {getAssignedCount(assignments, item.role)}/{item.count || 0}
+                          </span>
+                        ))}
+                      </div>
                       <ShiftAssignmentButton shiftId={shift.id} action="unassign" className="button ghost">
                         Odhlásit se
                       </ShiftAssignmentButton>
                     </>
                   ) : (
-                    (shift.requiredRoles.length > 0 ? shift.requiredRoles : STAFF_ROLES.map((role) => ({ role, count: 0 }))).map((item) => (
+                    displayRoles.map((item) => (
                       <ShiftAssignmentButton
                         key={`${shift.id}-${item.role}`}
                         shiftId={shift.id}
@@ -236,7 +245,7 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                         staffRole={item.role}
                         className="button role-signup-button"
                       >
-                        {staffRoleLabels[item.role]} {item.count > 0 ? `${getAssignedCount(assignments, item.role)}/${item.count}` : ""}
+                        {staffRoleLabels[item.role]}
                       </ShiftAssignmentButton>
                     ))
                   )
@@ -282,10 +291,6 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                           </option>
                         ))}
                       </select>
-                    </label>
-                    <label>
-                      Min. lidí
-                      <input type="number" min={0} name="minimumPeople" defaultValue={shift.minimumPeople} required />
                     </label>
                     {STAFF_ROLES.map((role) => (
                       <label key={`${shift.id}-${role}`}>

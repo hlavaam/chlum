@@ -88,7 +88,7 @@ export function WorkProfileAccountSection({ user, redirectTo, feedback }: Accoun
 
 export function WorkProfilePreferencesSection({ user, redirectTo, feedback }: PreferencesSectionProps) {
   return (
-    <section className="panel stack">
+    <section className="panel stack" id="preference-brigad">
       <div>
         <p className="eyebrow">Onboarding</p>
         <h2>Preference brigád</h2>

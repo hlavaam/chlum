@@ -206,10 +206,6 @@ async function WorkScheduleContent({ searchParams }: Props) {
                 <input type="time" name="startTime" />
               </label>
               <FlexibleEndTimeFields timeLabel="Čas do (volitelné)" />
-              <label>
-                Min. lidí
-                <input type="number" min={0} name="minimumPeople" defaultValue={3} required />
-              </label>
               {STAFF_ROLES.map((role) => (
                 <label key={`create-role-${role}`}>
                   {staffRoleLabels[role]} potřebujeme
@@ -385,10 +381,6 @@ async function WorkScheduleContent({ searchParams }: Props) {
                           </option>
                         ))}
                       </select>
-                    </label>
-                    <label>
-                      Min. lidí
-                      <input type="number" min={0} name="minimumPeople" defaultValue={detail.shift.minimumPeople} required />
                     </label>
                     {STAFF_ROLES.map((role) => (
                       <label key={`${detail.shift.id}-${role}`}>

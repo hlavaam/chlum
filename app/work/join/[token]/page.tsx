@@ -39,10 +39,7 @@ export default async function WorkInvitePage({ params, searchParams }: Props) {
   return (
     <WorkOnboardingWizard
       token={token}
-      inviteLabel={invite.label}
       inviteEmail={invite.email}
-      inviteUseCount={invite.useCount}
-      inviteMaxUses={invite.maxUses}
       error={error}
     />
   );

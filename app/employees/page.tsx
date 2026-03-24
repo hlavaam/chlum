@@ -56,20 +56,6 @@ function locationBubbleLabel(location?: { code?: string | null; name?: string | 
   return "Pobočka";
 }
 
-function formatRequiredRoles(
-  requirements: Array<{
-    role: (typeof STAFF_ROLES)[number];
-    count: number;
-  }>,
-) {
-  const labels = STAFF_ROLES.map((role) => {
-    const count = requirements.find((item) => item.role === role)?.count ?? 0;
-    return count > 0 ? `${staffRoleLabels[role]} ${count}` : null;
-  }).filter((value): value is string => Boolean(value));
-
-  return labels.length > 0 ? labels.join(" • ") : "Bez upřesnění";
-}
-
 export default async function EmployeesCalendarPage({ searchParams }: Props) {
   const user = await requireUser();
   const params = await searchParams;
@@ -91,10 +77,22 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
     isManagerRole(user.role) ? getWeekRosterCached(weekStart, weekEnd) : Promise.resolve([]),
     isManagerRole(user.role) ? getShiftPresetsCached() : Promise.resolve([]),
   ]);
+  const allShiftIds = [
+    ...new Set(
+      dashboardSnapshot.summaryEntries.flatMap(([, summary]) => summary.shifts.map((shift) => shift.id)),
+    ),
+  ];
+  const rangeAssignments = allShiftIds.length > 0 ? await assignmentsService.forShiftIds(allShiftIds) : [];
   const summaryMap = new Map(dashboardSnapshot.summaryEntries);
   const locations = dashboardSnapshot.locations;
   const events = dashboardSnapshot.events;
   const myShiftIds = new Set(myAssignments.map((a) => a.shiftId));
+  const roleCountsByShift = new Map<string, Map<(typeof STAFF_ROLES)[number], number>>();
+  for (const assignment of rangeAssignments) {
+    const roleMap = roleCountsByShift.get(assignment.shiftId) ?? new Map<(typeof STAFF_ROLES)[number], number>();
+    roleMap.set(assignment.staffRole, (roleMap.get(assignment.staffRole) ?? 0) + 1);
+    roleCountsByShift.set(assignment.shiftId, roleMap);
+  }
   const locationMap = new Map(locations.map((l) => [l.id, l]));
   const locationColorById = new Map(
     [...locations]
@@ -150,7 +148,13 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
           shiftId: shift.id,
           locationLabel: locationBubbleLabel(location),
           timeLabel: `${shift.startTime}–${shift.endTime}`,
-          roleSummary: formatRequiredRoles(shift.requiredRoles),
+          roleStats: shift.requiredRoles
+            .filter((item) => item.count > 0)
+            .map((item) => ({
+              label: staffRoleLabels[item.role],
+              assigned: roleCountsByShift.get(shift.id)?.get(item.role) ?? 0,
+              required: item.count,
+            })),
           isMine: myShiftIds.has(shift.id),
           color,
         };
@@ -285,7 +289,7 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
 
       {selectedDay ? (
         <div className="calendar-overlay" role="dialog" aria-modal="true" aria-label={`Detail dne ${selectedDay}`}>
-          <AppLink className="calendar-overlay-backdrop" href={calendarBaseHref} aria-label="Zavřít detail dne" />
+          <AppLink className="calendar-overlay-backdrop" href={calendarBaseHref} scroll={false} aria-label="Zavřít detail dne" />
           <div className="calendar-overlay-panel">
             <DayDetailView
               date={selectedDay}

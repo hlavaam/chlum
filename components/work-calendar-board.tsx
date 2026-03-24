@@ -19,7 +19,11 @@ type CalendarLocationRow = {
   shiftId: string;
   locationLabel: string;
   timeLabel: string;
-  roleSummary: string;
+  roleStats: Array<{
+    label: string;
+    assigned: number;
+    required: number;
+  }>;
   isMine: boolean;
   color?: LocationColor;
 };
@@ -95,7 +99,7 @@ export function WorkCalendarBoard({
 
   function handleDayOpen(href: string) {
     if (Date.now() - lastDropAtRef.current < 350) return;
-    router.push(href);
+    router.push(href, { scroll: false });
   }
 
   return (
@@ -181,13 +185,16 @@ export function WorkCalendarBoard({
                             <p className="day-location-title">
                               <strong>{row.locationLabel}</strong>
                             </p>
-                            <p className="day-location-places">
-                              <strong>{row.timeLabel}</strong>
-                            </p>
-                            <p className="day-location-type">{row.roleSummary}</p>
+                            <p className="day-location-time">{row.timeLabel}</p>
+                            <div className="shift-role-stats">
+                              {row.roleStats.map((roleStat) => (
+                                <p key={`${row.shiftId}-${roleStat.label}`} className="day-location-type">
+                                  {roleStat.label}: {roleStat.assigned}/{roleStat.required}
+                                </p>
+                              ))}
+                            </div>
                             {isBusy ? <p className="tiny subtle">Přidávám preset…</p> : null}
                           </div>
-                          {row.isMine ? <span className="chip">Moje směna</span> : null}
                         </div>
                       );
                     })}
