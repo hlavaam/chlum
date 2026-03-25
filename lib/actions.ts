@@ -6,7 +6,7 @@ import { revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
-import { canChangeUserRole, canUseWorkRole, getAssignableRoles, isBaseRole, isManagerRole } from "@/lib/auth/role-access";
+import { canManageUserAccount, canUseWorkRole, getAssignableRoles, isBaseRole, isManagerRole } from "@/lib/auth/role-access";
 import {
   APP_ROLES,
   AVAILABILITY_STATUSES,
@@ -862,7 +862,7 @@ export async function updateUserRoleAction(formData: FormData) {
     redirect(staffPaths.adminPeople);
   }
   const targetUser = await usersService.findById(userId);
-  if (!targetUser || !canChangeUserRole(manager.role, targetUser.role)) {
+  if (!targetUser || !canManageUserAccount(manager.role, targetUser.role)) {
     redirect(staffPaths.adminPeople);
   }
   await usersService.update(userId, { role });
@@ -872,10 +872,14 @@ export async function updateUserRoleAction(formData: FormData) {
 }
 
 export async function updateUserPasswordAction(formData: FormData) {
-  await requireRoles(["manager", "admin"]);
+  const manager = await requireRoles(["manager", "admin"]);
   const userId = getString(formData, "userId");
   const password = getString(formData, "password");
   if (!userId || password.length < 6) redirect(staffPaths.adminPeople);
+  const targetUser = await usersService.findById(userId);
+  if (!targetUser || !canManageUserAccount(manager.role, targetUser.role)) {
+    redirect(staffPaths.adminPeople);
+  }
   await usersService.update(userId, { passwordHash: hashPassword(password) });
   revalidateDataTags("users");
   revalidatePath(staffPaths.adminPeople);
@@ -886,6 +890,10 @@ export async function deleteUserAction(formData: FormData) {
   const admin = await requireRoles(["manager", "admin"]);
   const userId = getString(formData, "userId");
   if (!userId || userId === admin.id) redirect(staffPaths.adminPeople);
+  const targetUser = await usersService.findById(userId);
+  if (!targetUser || !canManageUserAccount(admin.role, targetUser.role)) {
+    redirect(staffPaths.adminPeople);
+  }
   await safeDisconnectCalendarForUser(userId);
   await baseAttendanceService.deleteForUser(userId);
   await assignmentsService.deleteForUser(userId);

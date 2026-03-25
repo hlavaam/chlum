@@ -10,7 +10,7 @@ import {
   updateUserPasswordAction,
   updateUserRoleAction,
 } from "@/lib/actions";
-import { canChangeUserRole, getAssignableRoles } from "@/lib/auth/role-access";
+import { canManageUserAccount, getAssignableRoles } from "@/lib/auth/role-access";
 import { requireRoles } from "@/lib/auth/rbac";
 import { roleLabels, staffRoleLabels, workDayPreferenceLabels, workPeriodLabels } from "@/lib/constants";
 import { workPaths } from "@/lib/paths";
@@ -207,6 +207,7 @@ async function WorkPeopleContent() {
             <tbody>
               {users.map((user) => {
                 const attendance = attendanceByUser.get(user.id);
+                const canManageUser = canManageUserAccount(admin.role, user.role);
                 return (
                   <tr key={user.id}>
                     <td data-label="Jméno">
@@ -288,43 +289,45 @@ async function WorkPeopleContent() {
                     </td>
                     <td data-label="Akce">
                       <div className="stack admin-user-actions">
-                        {canChangeUserRole(admin.role, user.role) ? (
-                          <form action={updateUserRoleAction} className="row gap-sm wrap admin-inline-form">
-                            <input type="hidden" name="userId" value={user.id} />
-                            <select name="role" defaultValue={user.role}>
-                              {assignableRoles.map((role) => (
-                                <option key={role} value={role}>
-                                  {roleLabels[role]}
-                                </option>
-                              ))}
-                            </select>
-                            <button type="submit" className="button ghost">
-                              Uložit roli
-                            </button>
-                          </form>
+                        {canManageUser ? (
+                          <>
+                            <form action={updateUserRoleAction} className="row gap-sm wrap admin-inline-form">
+                              <input type="hidden" name="userId" value={user.id} />
+                              <select name="role" defaultValue={user.role}>
+                                {assignableRoles.map((role) => (
+                                  <option key={role} value={role}>
+                                    {roleLabels[role]}
+                                  </option>
+                                ))}
+                              </select>
+                              <button type="submit" className="button ghost">
+                                Uložit roli
+                              </button>
+                            </form>
+
+                            <form action={updateUserPasswordAction} className="row gap-sm wrap admin-inline-form">
+                              <input type="hidden" name="userId" value={user.id} />
+                              <input type="password" name="password" minLength={6} placeholder="Nové heslo" required />
+                              <button type="submit" className="button ghost">
+                                Změnit heslo
+                              </button>
+                            </form>
+
+                            <form action={deleteUserAction} className="row gap-sm wrap admin-inline-form">
+                              <input type="hidden" name="userId" value={user.id} />
+                              <ConfirmSubmitButton
+                                type="submit"
+                                className="button ghost danger"
+                                disabled={admin.id === user.id}
+                                confirmMessage={`Smazat uživatele ${user.name}?`}
+                              >
+                                Smazat uživatele
+                              </ConfirmSubmitButton>
+                            </form>
+                          </>
                         ) : (
-                          <p className="subtle tiny">Manažer nemůže měnit roli admina ani super admina.</p>
+                          <p className="subtle tiny">Manažer nemůže admina ani super admina upravovat ani smazat.</p>
                         )}
-
-                        <form action={updateUserPasswordAction} className="row gap-sm wrap admin-inline-form">
-                          <input type="hidden" name="userId" value={user.id} />
-                          <input type="password" name="password" minLength={6} placeholder="Nové heslo" required />
-                          <button type="submit" className="button ghost">
-                            Změnit heslo
-                          </button>
-                        </form>
-
-                        <form action={deleteUserAction} className="row gap-sm wrap admin-inline-form">
-                          <input type="hidden" name="userId" value={user.id} />
-                          <ConfirmSubmitButton
-                            type="submit"
-                            className="button ghost danger"
-                            disabled={admin.id === user.id}
-                            confirmMessage={`Smazat uživatele ${user.name}?`}
-                          >
-                            Smazat uživatele
-                          </ConfirmSubmitButton>
-                        </form>
                         {admin.id === user.id ? <p className="subtle tiny">Aktuálně přihlášený admin nejde smazat.</p> : null}
                       </div>
                     </td>

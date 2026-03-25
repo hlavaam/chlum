@@ -29,10 +29,14 @@ export function hasRoleAccess(role: AppRole, allowedRoles: AppRole[]) {
   return allowedRoles.includes(role) || isSuperAdminRole(role);
 }
 
-export function canChangeUserRole(actorRole: AppRole, targetRole: AppRole) {
+export function canManageUserAccount(actorRole: AppRole, targetRole: AppRole) {
   if (!isManagerRole(actorRole)) return false;
   if (actorRole === "manager") return !isAdminRole(targetRole);
   return true;
+}
+
+export function canChangeUserRole(actorRole: AppRole, targetRole: AppRole) {
+  return canManageUserAccount(actorRole, targetRole);
 }
 
 export function getAssignableRoles(actorRole: AppRole) {

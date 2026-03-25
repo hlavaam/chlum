@@ -188,13 +188,6 @@ export default async function WorkBasePage({ searchParams }: Props) {
           }
         : null,
     }));
-  const todayLocationOverview = visibleBaseLocations
-    .map((location) => ({
-      location,
-      entries: rosterByLocation.get(location.id) ?? [],
-    }))
-    .filter((entry) => entry.entries.length > 0);
-
   const terminal = (
     <WorkBaseTerminal
       locations={visibleBaseLocations.map((location) => ({ id: location.id, name: location.name, code: location.code }))}
@@ -206,6 +199,13 @@ export default async function WorkBasePage({ searchParams }: Props) {
       compactMode={isBaseRole(currentUser.role)}
     />
   );
+
+  const todayLocationOverview = visibleBaseLocations
+    .map((location) => ({
+      location,
+      entries: rosterByLocation.get(location.id) ?? [],
+    }))
+    .filter((entry) => entry.entries.length > 0);
 
   if (isBaseRole(currentUser.role)) {
     return (
