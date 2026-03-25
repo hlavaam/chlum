@@ -4,9 +4,11 @@ import {
   createInviteAction,
   createLocationAction,
   createUserAction,
+  deleteBaseAttendanceAction,
   deleteInviteAction,
   deleteUserAction,
   updateLocationAction,
+  updateBaseAttendanceAction,
   updateUserPasswordAction,
   updateUserRoleAction,
 } from "@/lib/actions";
@@ -27,6 +29,18 @@ function formatAttendanceDateTime(iso?: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(iso));
+}
+
+function formatDateTimeLocalValue(iso?: string) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
 }
 
 async function WorkPeopleContent() {
@@ -277,6 +291,53 @@ async function WorkPeopleContent() {
                                       {record.clockOutAt ? formatAttendanceDateTime(record.clockOutAt) : "otevřeno"}
                                     </p>
                                     <p>{formatMinutes(minutesBetween(record.clockInAt, record.clockOutAt ?? record.clockInAt))}</p>
+                                    <details className="stack">
+                                      <summary className="button ghost small summary-button">Upravit log</summary>
+                                      <form action={updateBaseAttendanceAction} className="stack gap-sm admin-inline-form">
+                                        <input type="hidden" name="recordId" value={record.id} />
+                                        <input type="hidden" name="redirectTo" value={workPaths.people} />
+                                        <label>
+                                          Příchod
+                                          <input type="datetime-local" name="clockInAt" defaultValue={formatDateTimeLocalValue(record.clockInAt)} required />
+                                        </label>
+                                        <label>
+                                          Pobočka příchodu
+                                          <select name="clockInLocationId" defaultValue={record.clockInLocationId}>
+                                            {locations.map((location) => (
+                                              <option key={`${record.id}-people-in-${location.id}`} value={location.id}>
+                                                {location.name}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </label>
+                                        <label>
+                                          Odchod
+                                          <input type="datetime-local" name="clockOutAt" defaultValue={formatDateTimeLocalValue(record.clockOutAt)} />
+                                        </label>
+                                        <label>
+                                          Pobočka odchodu
+                                          <select name="clockOutLocationId" defaultValue={record.clockOutLocationId ?? record.clockInLocationId}>
+                                            {locations.map((location) => (
+                                              <option key={`${record.id}-people-out-${location.id}`} value={location.id}>
+                                                {location.name}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        </label>
+                                        <button type="submit" className="button ghost small">Uložit úpravu</button>
+                                      </form>
+                                      <form action={deleteBaseAttendanceAction} className="row gap-sm wrap admin-inline-form">
+                                        <input type="hidden" name="recordId" value={record.id} />
+                                        <input type="hidden" name="redirectTo" value={workPaths.people} />
+                                        <ConfirmSubmitButton
+                                          type="submit"
+                                          className="button ghost danger small"
+                                          confirmMessage={`Smazat docházku pro ${user.name}?`}
+                                        >
+                                          Smazat log
+                                        </ConfirmSubmitButton>
+                                      </form>
+                                    </details>
                                   </div>
                                 ))
                               ) : (

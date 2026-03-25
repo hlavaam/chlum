@@ -1,15 +1,24 @@
 import { redirect } from "next/navigation";
 
+import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { WorkAppFrame } from "@/components/work-app-frame";
 import { WorkBaseAccessForm } from "@/components/work-base-access-form";
 import { WorkBaseTerminal } from "@/components/work-base-terminal";
-import { logoutAction } from "@/lib/actions";
+import { deleteBaseAttendanceAction, logoutAction, updateBaseAttendanceAction } from "@/lib/actions";
 import { canUseBaseTerminalRole, isBaseRole } from "@/lib/auth/role-access";
 import { getCurrentUser } from "@/lib/auth/session";
 import { workPaths } from "@/lib/paths";
 import { baseAttendanceService } from "@/lib/services/base-attendance";
 import { getDayDetailsCached, getLocationsCached, getUsersCached } from "@/lib/services/cached-reads";
 import {
+  endOfMonth,
+  endOfWeek,
+  formatCzDate,
+  formatMinutes,
+  minutesBetween,
+  parseDateKey,
+  startOfMonth,
+  startOfWeek,
   toDateKey,
 } from "@/lib/utils";
 
@@ -18,7 +27,7 @@ type Props = {
 };
 
 function readString(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
+  return Array.isArray(value) ? (value[0] ?? "") : (value ?? "");
 }
 
 function formatTime(iso: string) {
@@ -26,6 +35,34 @@ function formatTime(iso: string) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(iso));
+}
+
+function formatDateTime(iso?: string) {
+  if (!iso) return "—";
+  return new Intl.DateTimeFormat("cs-CZ", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+function formatDateTimeLocalValue(iso?: string) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+function readDateKey(value: string | string[] | undefined, fallback: string) {
+  const raw = readString(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : fallback;
 }
 
 export default async function WorkBasePage({ searchParams }: Props) {
@@ -48,6 +85,14 @@ export default async function WorkBasePage({ searchParams }: Props) {
   }
 
   const todayDate = toDateKey(new Date());
+  const selectedRange = readString(params?.range) === "week" ? "week" : "month";
+  const selectedDate = readDateKey(params?.date, todayDate);
+  const selectedDateValue = parseDateKey(selectedDate);
+  const periodStart = selectedRange === "week" ? startOfWeek(selectedDateValue) : startOfMonth(selectedDateValue);
+  const periodEnd = selectedRange === "week" ? endOfWeek(selectedDateValue) : endOfMonth(selectedDateValue);
+  const periodStartKey = toDateKey(periodStart);
+  const periodEndKey = toDateKey(periodEnd);
+  const redirectTo = workPaths.baseWithParams({ date: selectedDate, range: selectedRange });
 
   const [locations, users, records, activeRecords, todayDetails] = await Promise.all([
     getLocationsCached(),
@@ -206,6 +251,36 @@ export default async function WorkBasePage({ searchParams }: Props) {
       entries: rosterByLocation.get(location.id) ?? [],
     }))
     .filter((entry) => entry.entries.length > 0);
+  const periodRecords = [...records]
+    .filter((record) => {
+      const recordDate = record.clockInAt.slice(0, 10);
+      if (recordDate < periodStartKey || recordDate > periodEndKey) return false;
+      if (!allowedLocationIds) return true;
+      return allowedLocationIds.has(record.clockInLocationId) || (record.clockOutLocationId ? allowedLocationIds.has(record.clockOutLocationId) : false);
+    })
+    .sort((a, b) => (b.clockOutAt ?? b.clockInAt).localeCompare(a.clockOutAt ?? a.clockInAt));
+  const summaryRows = users
+    .filter((user) => user.active && user.role !== "base")
+    .map((user) => {
+      const userPeriodRecords = periodRecords.filter((record) => record.userId === user.id);
+      const userTodayRecords = todayRecords.filter((record) => record.userId === user.id);
+      const firstTodayRecord = [...userTodayRecords].sort((a, b) => a.clockInAt.localeCompare(b.clockInAt))[0];
+      const latestTodayRecord = userTodayRecords[0];
+      const activeRecord = activeRecordByUserId.get(user.id) ?? null;
+      const totalMinutes = userPeriodRecords.reduce(
+        (sum, record) => sum + minutesBetween(record.clockInAt, record.clockOutAt ?? new Date().toISOString()),
+        0,
+      );
+      return {
+        user,
+        totalMinutes,
+        recordsCount: userPeriodRecords.length,
+        currentLocation: activeRecord ? (locationMap.get(activeRecord.clockInLocationId)?.name ?? activeRecord.clockInLocationId) : null,
+        firstTodayAt: firstTodayRecord?.clockInAt,
+        lastTodayAt: latestTodayRecord?.clockOutAt,
+      };
+    })
+    .filter((row) => row.recordsCount > 0 || row.currentLocation || row.firstTodayAt || row.lastTodayAt);
 
   if (isBaseRole(currentUser.role)) {
     return (
@@ -240,8 +315,64 @@ export default async function WorkBasePage({ searchParams }: Props) {
             </span>
           </div>
           <p className="subtle">
-            Přihlášené účty Základna vidí jen kioskovou obrazovku. Tady jako manager nebo admin vidíš i přehledy a ruční opravy.
+            Přihlášené účty Základna vidí jen kioskovou obrazovku. Tady jako manager, admin nebo super admin vidíš i přehledy,
+            historii a ruční opravy.
           </p>
+        </section>
+
+        <section className="panel stack">
+          <div className="row between wrap">
+            <div>
+              <p className="eyebrow">Období</p>
+              <h2>Souhrn docházky</h2>
+            </div>
+            <span className="badge neutral">
+              {selectedRange === "week" ? "Týden" : "Měsíc"}: {formatCzDate(periodStartKey)} až {formatCzDate(periodEndKey)}
+            </span>
+          </div>
+          <form method="get" action={workPaths.base} className="row gap-sm wrap admin-inline-form">
+            <label>
+              Období
+              <select name="range" defaultValue={selectedRange}>
+                <option value="week">Týden</option>
+                <option value="month">Měsíc</option>
+              </select>
+            </label>
+            <label>
+              Kotvící datum
+              <input type="date" name="date" defaultValue={selectedDate} />
+            </label>
+            <button type="submit" className="button ghost">Načíst</button>
+          </form>
+          {summaryRows.length === 0 ? <p className="subtle">Ve vybraném období zatím nejsou žádné záznamy.</p> : null}
+          {summaryRows.length > 0 ? (
+            <div className="table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Člověk</th>
+                    <th>Aktuálně kde je</th>
+                    <th>Dnes přišel</th>
+                    <th>Dnes odešel</th>
+                    <th>Součet za období</th>
+                    <th>Záznamů</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summaryRows.map((row) => (
+                    <tr key={`summary-${row.user.id}`}>
+                      <td data-label="Člověk">{row.user.name}</td>
+                      <td data-label="Aktuálně kde je">{row.currentLocation ?? "Mimo základnu"}</td>
+                      <td data-label="Dnes přišel">{formatDateTime(row.firstTodayAt)}</td>
+                      <td data-label="Dnes odešel">{formatDateTime(row.lastTodayAt)}</td>
+                      <td data-label="Součet za období">{formatMinutes(row.totalMinutes)}</td>
+                      <td data-label="Záznamů">{row.recordsCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </section>
 
         {terminal}
@@ -284,6 +415,108 @@ export default async function WorkBasePage({ searchParams }: Props) {
               </article>
             ))}
           </div>
+        </section>
+
+        <section className="panel stack">
+          <details className="stack">
+            <summary className="button ghost summary-button">
+              Historie docházky a ruční opravy ({periodRecords.length})
+            </summary>
+            {periodRecords.length === 0 ? <p className="subtle">Ve vybraném období zatím není co upravovat.</p> : null}
+            {periodRecords.length > 0 ? (
+              <div className="table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Člověk</th>
+                      <th>Příchod</th>
+                      <th>Odchod</th>
+                      <th>Celkem</th>
+                      <th>Akce</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {periodRecords.map((record) => {
+                      const user = userById.get(record.userId);
+                      const inLocation = locationMap.get(record.clockInLocationId)?.name ?? record.clockInLocationId;
+                      const outLocation = record.clockOutLocationId
+                        ? (locationMap.get(record.clockOutLocationId)?.name ?? record.clockOutLocationId)
+                        : inLocation;
+                      return (
+                        <tr key={record.id}>
+                          <td data-label="Člověk">{user?.name ?? record.userId}</td>
+                          <td data-label="Příchod">
+                            <div className="stack gap-sm">
+                              <p>{formatDateTime(record.clockInAt)}</p>
+                              <p className="tiny subtle">{inLocation}</p>
+                            </div>
+                          </td>
+                          <td data-label="Odchod">
+                            <div className="stack gap-sm">
+                              <p>{formatDateTime(record.clockOutAt)}</p>
+                              <p className="tiny subtle">{record.clockOutAt ? outLocation : "otevřeno"}</p>
+                            </div>
+                          </td>
+                          <td data-label="Celkem">{formatMinutes(minutesBetween(record.clockInAt, record.clockOutAt ?? new Date().toISOString()))}</td>
+                          <td data-label="Akce">
+                            <details className="stack">
+                              <summary className="button ghost small summary-button">Upravit log</summary>
+                              <form action={updateBaseAttendanceAction} className="stack gap-sm admin-inline-form">
+                                <input type="hidden" name="recordId" value={record.id} />
+                                <input type="hidden" name="redirectTo" value={redirectTo} />
+                                <label>
+                                  Příchod
+                                  <input type="datetime-local" name="clockInAt" defaultValue={formatDateTimeLocalValue(record.clockInAt)} required />
+                                </label>
+                                <label>
+                                  Pobočka příchodu
+                                  <select name="clockInLocationId" defaultValue={record.clockInLocationId}>
+                                    {visibleBaseLocations.map((location) => (
+                                      <option key={`${record.id}-in-${location.id}`} value={location.id}>
+                                        {location.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <label>
+                                  Odchod
+                                  <input type="datetime-local" name="clockOutAt" defaultValue={formatDateTimeLocalValue(record.clockOutAt)} />
+                                </label>
+                                <label>
+                                  Pobočka odchodu
+                                  <select name="clockOutLocationId" defaultValue={record.clockOutLocationId ?? record.clockInLocationId}>
+                                    {visibleBaseLocations.map((location) => (
+                                      <option key={`${record.id}-out-${location.id}`} value={location.id}>
+                                        {location.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <div className="row gap-sm wrap">
+                                  <button type="submit" className="button ghost">Uložit úpravu</button>
+                                </div>
+                              </form>
+                              <form action={deleteBaseAttendanceAction} className="row gap-sm wrap admin-inline-form">
+                                <input type="hidden" name="recordId" value={record.id} />
+                                <input type="hidden" name="redirectTo" value={redirectTo} />
+                                <ConfirmSubmitButton
+                                  type="submit"
+                                  className="button ghost danger"
+                                  confirmMessage={`Smazat docházku pro ${user?.name ?? "uživatele"}?`}
+                                >
+                                  Smazat log
+                                </ConfirmSubmitButton>
+                              </form>
+                            </details>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </details>
         </section>
       </div>
     </WorkAppFrame>
