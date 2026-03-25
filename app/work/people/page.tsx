@@ -13,19 +13,52 @@ import {
 import { requireRoles } from "@/lib/auth/rbac";
 import { APP_ROLES, roleLabels, staffRoleLabels, workDayPreferenceLabels, workPeriodLabels } from "@/lib/constants";
 import { workPaths } from "@/lib/paths";
+import { baseAttendanceService } from "@/lib/services/base-attendance";
 import { getInvitesCached, getLocationsCached, getUsersCached } from "@/lib/services/cached-reads";
-import { nowIso } from "@/lib/utils";
+import { formatMinutes, minutesBetween, nowIso } from "@/lib/utils";
+
+function formatAttendanceDateTime(iso?: string) {
+  if (!iso) return "—";
+  return new Intl.DateTimeFormat("cs-CZ", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
 
 async function WorkPeopleContent() {
   const admin = await requireRoles(["manager", "admin"], {
     loginPath: workPaths.login,
     fallbackPath: workPaths.schedule,
   });
-  const [users, locations, invites] = await Promise.all([getUsersCached(), getLocationsCached(), getInvitesCached()]);
+  const [users, locations, invites, attendanceRecords] = await Promise.all([
+    getUsersCached(),
+    getLocationsCached(),
+    getInvitesCached(),
+    baseAttendanceService.loadAll(),
+  ]);
   const activeInvites = invites
     .filter((invite) => invite.expiresAt >= nowIso() && (typeof invite.maxUses !== "number" || invite.useCount < invite.maxUses))
     .sort((a, b) => (a.label ?? a.token).localeCompare(b.label ?? b.token));
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://vysker.com";
+  const locationMap = new Map(locations.map((location) => [location.id, location.name]));
+  const attendanceByUser = new Map(
+    users.map((user) => {
+      const userRecords = attendanceRecords
+        .filter((record) => record.userId === user.id)
+        .sort((a, b) => (b.clockOutAt ?? b.clockInAt).localeCompare(a.clockOutAt ?? a.clockInAt));
+      const totalMinutes = userRecords.reduce((sum, record) => sum + minutesBetween(record.clockInAt, record.clockOutAt ?? record.clockInAt), 0);
+      return [
+        user.id,
+        {
+          totalMinutes,
+          records: userRecords.slice(0, 8),
+        },
+      ] as const;
+    }),
+  );
 
   return (
     <div className="stack gap-lg">
@@ -155,22 +188,23 @@ async function WorkPeopleContent() {
         </form>
       </section>
 
-      <section className="grid-2">
-        <div className="panel stack">
-          <h2>Uživatelé</h2>
-          <div className="table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Jméno</th>
-                  <th>E-mail</th>
-                  <th>Role</th>
-                  <th>Profil brigádníka</th>
-                  <th>Akce</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
+      <section className="panel stack">
+        <h2>Uživatelé</h2>
+        <div className="table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Jméno</th>
+                <th>E-mail</th>
+                <th>Role</th>
+                <th>Profil brigádníka</th>
+                <th>Akce</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => {
+                const attendance = attendanceByUser.get(user.id);
+                return (
                   <tr key={user.id}>
                     <td data-label="Jméno">
                       <div className="row gap-sm align-center wrap">
@@ -189,9 +223,7 @@ async function WorkPeopleContent() {
                           <p className="tiny">
                             <strong>Pobočky:</strong>{" "}
                             {user.locationIds.length > 0
-                              ? user.locationIds
-                                  .map((locationId) => locations.find((location) => location.id === locationId)?.name ?? locationId)
-                                  .join(", ")
+                              ? user.locationIds.map((locationId) => locationMap.get(locationId) ?? locationId).join(", ")
                               : "neuvedeno"}
                           </p>
                         </div>
@@ -224,6 +256,30 @@ async function WorkPeopleContent() {
                               ? user.workDayPreferences.map((value) => workDayPreferenceLabels[value]).join(", ")
                               : "neuvedeno"}
                           </p>
+                          <details className="stack">
+                            <summary className="button ghost small summary-button">Docházka a hodiny</summary>
+                            <div className="stack gap-sm">
+                              <p className="tiny">
+                                <strong>Celkem:</strong> {attendance ? formatMinutes(attendance.totalMinutes) : "0 h 00 min"}
+                              </p>
+                              {attendance && attendance.records.length > 0 ? (
+                                attendance.records.map((record) => (
+                                  <div key={record.id} className="tiny list-row">
+                                    <p>
+                                      <strong>{locationMap.get(record.clockInLocationId) ?? record.clockInLocationId}</strong>
+                                    </p>
+                                    <p>
+                                      {formatAttendanceDateTime(record.clockInAt)} {"->"}{" "}
+                                      {record.clockOutAt ? formatAttendanceDateTime(record.clockOutAt) : "otevřeno"}
+                                    </p>
+                                    <p>{formatMinutes(minutesBetween(record.clockInAt, record.clockOutAt ?? record.clockInAt))}</p>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="tiny subtle">Zatím bez záznamů docházky.</p>
+                              )}
+                            </div>
+                          </details>
                         </div>
                       )}
                     </td>
@@ -266,71 +322,75 @@ async function WorkPeopleContent() {
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
+      </section>
 
-        <div className="panel stack">
-          <h2>Pobočky</h2>
-          <form action={createLocationAction} className="stack">
-            <label>
-              Název
-              <input type="text" name="name" required />
-            </label>
-            <label>
-              Kód
-              <input type="text" name="code" required />
-            </label>
-            <label>
-              Adresa
-              <input type="text" name="address" required />
-            </label>
-            <button type="submit" className="button">
-              Přidat pobočku
-            </button>
-          </form>
+      <section className="panel stack">
+        <details className="stack">
+          <summary className="button ghost summary-button">Správa poboček</summary>
+          <div className="stack gap-lg">
+            <form action={createLocationAction} className="stack">
+              <label>
+                Název
+                <input type="text" name="name" required />
+              </label>
+              <label>
+                Kód
+                <input type="text" name="code" required />
+              </label>
+              <label>
+                Adresa
+                <input type="text" name="address" required />
+              </label>
+              <button type="submit" className="button">
+                Přidat pobočku
+              </button>
+            </form>
 
-          <div className="table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Kód</th>
-                  <th>Název</th>
-                  <th>Adresa</th>
-                  <th>Akce</th>
-                </tr>
-              </thead>
-              <tbody>
-                {locations.map((location) => {
-                  const formId = `location-edit-${location.id}`;
-                  return (
-                    <tr key={location.id}>
-                      <td data-label="Kód">
-                        <input form={formId} type="text" name="code" defaultValue={location.code} required />
-                      </td>
-                      <td data-label="Název">
-                        <input form={formId} type="text" name="name" defaultValue={location.name} required />
-                      </td>
-                      <td data-label="Adresa">
-                        <input form={formId} type="text" name="address" defaultValue={location.address} required />
-                      </td>
-                      <td data-label="Akce">
-                        <form id={formId} action={updateLocationAction} className="row gap-sm wrap admin-inline-form">
-                          <input type="hidden" name="locationId" value={location.id} />
-                          <button type="submit" className="button ghost">
-                            Uložit
-                          </button>
-                        </form>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Kód</th>
+                    <th>Název</th>
+                    <th>Adresa</th>
+                    <th>Akce</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {locations.map((location) => {
+                    const formId = `location-edit-${location.id}`;
+                    return (
+                      <tr key={location.id}>
+                        <td data-label="Kód">
+                          <input form={formId} type="text" name="code" defaultValue={location.code} required />
+                        </td>
+                        <td data-label="Název">
+                          <input form={formId} type="text" name="name" defaultValue={location.name} required />
+                        </td>
+                        <td data-label="Adresa">
+                          <input form={formId} type="text" name="address" defaultValue={location.address} required />
+                        </td>
+                        <td data-label="Akce">
+                          <form id={formId} action={updateLocationAction} className="row gap-sm wrap admin-inline-form">
+                            <input type="hidden" name="locationId" value={location.id} />
+                            <button type="submit" className="button ghost">
+                              Uložit
+                            </button>
+                          </form>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+        </details>
       </section>
     </div>
   );

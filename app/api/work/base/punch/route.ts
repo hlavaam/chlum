@@ -7,9 +7,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { workPaths } from "@/lib/paths";
 import { baseAttendanceService } from "@/lib/services/base-attendance";
 import { resolveBaseAttendanceToken } from "@/lib/services/base-attendance-qr";
-import { getDayDetailsCached } from "@/lib/services/cached-reads";
 import { usersService } from "@/lib/services/users";
-import { toDateKey } from "@/lib/utils";
 
 type PunchBody =
   | {
@@ -59,16 +57,16 @@ export async function POST(request: Request) {
 
   const user = await resolveTargetUser(body);
   if (!user) {
-    return NextResponse.json({ error: "Nepodařilo se ověřit brigádníka." }, { status: 401 });
+    return NextResponse.json({ error: "Nepodařilo se ověřit uživatele." }, { status: 401 });
   }
-  if (user.role !== "brigadnik") {
-    return NextResponse.json({ error: "Píchačka je jen pro brigádníky." }, { status: 400 });
+  if (user.role === "base") {
+    return NextResponse.json({ error: "Kioskový účet Základna se přes píchačku neeviduje." }, { status: 400 });
   }
 
   const activeRecord = await baseAttendanceService.activeForUser(user.id);
   if (activeRecord && activeRecord.clockInLocationId !== body.locationId) {
     return NextResponse.json(
-      { error: "Brigádník je právě píchnutý na jiné pobočce. Přepni se tam a odchod zapiš tam." },
+      { error: "Tenhle člověk je právě píchnutý na jiné pobočce. Přepni se tam a odchod zapiš tam." },
       { status: 409 },
     );
   }
@@ -78,18 +76,6 @@ export async function POST(request: Request) {
       currentUser.locationIds.length === 0 || currentUser.locationIds.includes(body.locationId);
     if (!hasLocationAccess) {
       return NextResponse.json({ error: "Tenhle účet Základna nemá přístup k vybrané pobočce." }, { status: 403 });
-    }
-
-    const todayDetails = await getDayDetailsCached(toDateKey(new Date()));
-    const assignedToday = todayDetails.some(
-      (detail) =>
-        detail.shift.locationId === body.locationId &&
-        detail.assignments.some((assignment) => assignment.userId === user.id),
-    );
-    const canClockOutHere = activeRecord?.clockInLocationId === body.locationId;
-
-    if (!assignedToday && !canClockOutHere) {
-      return NextResponse.json({ error: "Tenhle brigádník dnes na téhle pobočce není rozepsaný." }, { status: 403 });
     }
   }
 

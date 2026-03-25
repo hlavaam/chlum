@@ -273,6 +273,25 @@ export function WorkGoogleCalendarSection({
 export async function WorkBaseQrSection({ user }: BaseQrSectionProps) {
   const qrDataUrl = await createBaseAttendanceQrDataUrl(user.id);
   const backupCode = createBaseAttendanceToken(user.id);
+  const escapeSvgText = (value: string) =>
+    value
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&apos;");
+  const cardSvg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="900" height="1180" viewBox="0 0 900 1180">
+      <rect width="900" height="1180" rx="44" fill="#f5f1e8"/>
+      <rect x="72" y="72" width="756" height="756" rx="36" fill="#ffffff"/>
+      <image href="${qrDataUrl}" x="110" y="110" width="680" height="680" preserveAspectRatio="xMidYMid meet"/>
+      <text x="450" y="930" text-anchor="middle" font-family="Georgia, serif" font-size="54" fill="#114f43">${escapeSvgText(user.name)}</text>
+      <text x="450" y="1010" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" fill="#5f6d65">QR pro Základnu</text>
+      <text x="450" y="1060" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#7c877f">${escapeSvgText(backupCode)}</text>
+    </svg>
+  `.trim();
+  const qrCardDownloadUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(cardSvg)}`;
+  const fileName = `qr-${user.name.toLowerCase().replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "uzivatel"}.svg`;
 
   return (
     <section className="panel stack">
@@ -290,6 +309,9 @@ export async function WorkBaseQrSection({ user }: BaseQrSectionProps) {
         <p className="tiny subtle">Záložní kód</p>
         <code className="base-backup-code">{backupCode}</code>
       </div>
+      <a className="button ghost" href={qrCardDownloadUrl} download={fileName}>
+        Stáhnout QR se jménem
+      </a>
     </section>
   );
 }

@@ -6,6 +6,15 @@ import { exchangeGoogleAuthCode, syncUpcomingGoogleCalendarForUser } from "@/lib
 
 const STATE_COOKIE = "google_calendar_state";
 
+function getCanonicalSiteUrl() {
+  return process.env.NEXT_PUBLIC_SITE_URL ?? "https://vysker.com";
+}
+
+function getStateCookieDomain() {
+  const hostname = new URL(getCanonicalSiteUrl()).hostname;
+  return hostname.endsWith("vysker.com") ? ".vysker.com" : undefined;
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -15,18 +24,18 @@ export async function GET(request: Request) {
   const stateCookie = cookieStore.get(STATE_COOKIE)?.value;
 
   if (error || !code || !stateCookie) {
-    return NextResponse.redirect(new URL("/work/employees/my?google=error", request.url));
+    return NextResponse.redirect(new URL("/work/employees/my?google=error", getCanonicalSiteUrl()));
   }
 
   const parsed = JSON.parse(stateCookie) as { state?: string; userId?: string; next?: string; redirectUri?: string };
-  const redirectUri = parsed.redirectUri || new URL("/api/google-calendar/callback", request.url).toString();
+  const redirectUri = parsed.redirectUri || new URL("/api/google-calendar/callback", getCanonicalSiteUrl()).toString();
   if (!parsed.state || parsed.state !== state || !parsed.userId) {
-    return NextResponse.redirect(new URL("/work/employees/my?google=error", request.url));
+    return NextResponse.redirect(new URL("/work/employees/my?google=error", getCanonicalSiteUrl()));
   }
 
   const tokens = await exchangeGoogleAuthCode(code, redirectUri);
   if (!tokens?.access_token) {
-    return NextResponse.redirect(new URL("/work/employees/my?google=error", request.url));
+    return NextResponse.redirect(new URL("/work/employees/my?google=error", getCanonicalSiteUrl()));
   }
 
   const existing = await calendarConnectionsService.findGoogleByUser(parsed.userId);
@@ -47,7 +56,15 @@ export async function GET(request: Request) {
   }
   await syncUpcomingGoogleCalendarForUser(parsed.userId);
 
-  const response = NextResponse.redirect(new URL(`${parsed.next ?? "/work/employees/my"}?google=connected`, request.url));
-  response.cookies.delete(STATE_COOKIE);
+  const redirectPath = `${parsed.next ?? "/work/employees/my"}?google=connected`;
+  const response = NextResponse.redirect(new URL(redirectPath, getCanonicalSiteUrl()));
+  response.cookies.set(STATE_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    domain: getStateCookieDomain(),
+    maxAge: 0,
+  });
   return response;
 }
