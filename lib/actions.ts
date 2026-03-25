@@ -6,7 +6,7 @@ import { revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
-import { canUseWorkRole, isBaseRole, isManagerRole } from "@/lib/auth/role-access";
+import { canChangeUserRole, canUseWorkRole, getAssignableRoles, isBaseRole, isManagerRole } from "@/lib/auth/role-access";
 import {
   APP_ROLES,
   AVAILABILITY_STATUSES,
@@ -727,9 +727,9 @@ export async function updateLocationAction(formData: FormData) {
 }
 
 export async function createUserAction(formData: FormData) {
-  await requireRoles(["manager", "admin"]);
+  const manager = await requireRoles(["manager", "admin"]);
   const role = getString(formData, "role") as AppRole;
-  if (!APP_ROLES.includes(role)) redirect(staffPaths.adminPeople);
+  if (!APP_ROLES.includes(role) || !getAssignableRoles(manager.role).includes(role)) redirect(staffPaths.adminPeople);
   const locationIds = getStringArray(formData, "locationIds");
   const password = getString(formData, "password");
   const pin = normalizePinInput(getString(formData, "pin"));
@@ -758,7 +758,7 @@ export async function createInviteAction(formData: FormData) {
   const role = getString(formData, "role") as AppRole;
   const label = getString(formData, "label");
   const position = getString(formData, "position");
-  if (!APP_ROLES.includes(role)) redirect(staffPaths.adminPeople);
+  if (!APP_ROLES.includes(role) || !getAssignableRoles(manager.role).includes(role)) redirect(staffPaths.adminPeople);
 
   const locationIds = getStringArray(formData, "locationIds");
   const token = randomBytes(24).toString("hex");
@@ -855,10 +855,16 @@ export async function completeInviteAction(formData: FormData) {
 }
 
 export async function updateUserRoleAction(formData: FormData) {
-  await requireRoles(["manager", "admin"]);
+  const manager = await requireRoles(["manager", "admin"]);
   const userId = getString(formData, "userId");
   const role = getString(formData, "role") as AppRole;
-  if (!APP_ROLES.includes(role)) redirect(staffPaths.adminPeople);
+  if (!userId || !APP_ROLES.includes(role) || !getAssignableRoles(manager.role).includes(role)) {
+    redirect(staffPaths.adminPeople);
+  }
+  const targetUser = await usersService.findById(userId);
+  if (!targetUser || !canChangeUserRole(manager.role, targetUser.role)) {
+    redirect(staffPaths.adminPeople);
+  }
   await usersService.update(userId, { role });
   revalidateDataTags("users");
   revalidatePath(staffPaths.adminPeople);

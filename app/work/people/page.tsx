@@ -10,8 +10,9 @@ import {
   updateUserPasswordAction,
   updateUserRoleAction,
 } from "@/lib/actions";
+import { canChangeUserRole, getAssignableRoles } from "@/lib/auth/role-access";
 import { requireRoles } from "@/lib/auth/rbac";
-import { APP_ROLES, roleLabels, staffRoleLabels, workDayPreferenceLabels, workPeriodLabels } from "@/lib/constants";
+import { roleLabels, staffRoleLabels, workDayPreferenceLabels, workPeriodLabels } from "@/lib/constants";
 import { workPaths } from "@/lib/paths";
 import { baseAttendanceService } from "@/lib/services/base-attendance";
 import { getInvitesCached, getLocationsCached, getUsersCached } from "@/lib/services/cached-reads";
@@ -43,6 +44,8 @@ async function WorkPeopleContent() {
     .filter((invite) => invite.expiresAt >= nowIso() && (typeof invite.maxUses !== "number" || invite.useCount < invite.maxUses))
     .sort((a, b) => (a.label ?? a.token).localeCompare(b.label ?? b.token));
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://vysker.com";
+  const assignableRoles = getAssignableRoles(admin.role);
+  const inviteAssignableRoles = assignableRoles.filter((role) => role !== "base");
   const locationMap = new Map(locations.map((location) => [location.id, location.name]));
   const attendanceByUser = new Map(
     users.map((user) => {
@@ -76,7 +79,7 @@ async function WorkPeopleContent() {
           <label>
             Role účtu
             <select name="role" defaultValue="brigadnik">
-              {APP_ROLES.filter((role) => role !== "base").map((role) => (
+              {inviteAssignableRoles.map((role) => (
                 <option key={`invite-${role}`} value={role}>
                   {roleLabels[role]}
                 </option>
@@ -163,7 +166,7 @@ async function WorkPeopleContent() {
           <label>
             Role
             <select name="role" defaultValue="brigadnik">
-              {APP_ROLES.map((role) => (
+              {assignableRoles.map((role) => (
                 <option key={role} value={role}>
                   {roleLabels[role]}
                 </option>
@@ -285,19 +288,23 @@ async function WorkPeopleContent() {
                     </td>
                     <td data-label="Akce">
                       <div className="stack admin-user-actions">
-                        <form action={updateUserRoleAction} className="row gap-sm wrap admin-inline-form">
-                          <input type="hidden" name="userId" value={user.id} />
-                          <select name="role" defaultValue={user.role}>
-                            {APP_ROLES.map((role) => (
-                              <option key={role} value={role}>
-                                {roleLabels[role]}
-                              </option>
-                            ))}
-                          </select>
-                          <button type="submit" className="button ghost">
-                            Uložit roli
-                          </button>
-                        </form>
+                        {canChangeUserRole(admin.role, user.role) ? (
+                          <form action={updateUserRoleAction} className="row gap-sm wrap admin-inline-form">
+                            <input type="hidden" name="userId" value={user.id} />
+                            <select name="role" defaultValue={user.role}>
+                              {assignableRoles.map((role) => (
+                                <option key={role} value={role}>
+                                  {roleLabels[role]}
+                                </option>
+                              ))}
+                            </select>
+                            <button type="submit" className="button ghost">
+                              Uložit roli
+                            </button>
+                          </form>
+                        ) : (
+                          <p className="subtle tiny">Manažer nemůže měnit roli admina ani super admina.</p>
+                        )}
 
                         <form action={updateUserPasswordAction} className="row gap-sm wrap admin-inline-form">
                           <input type="hidden" name="userId" value={user.id} />
