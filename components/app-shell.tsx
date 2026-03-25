@@ -3,9 +3,9 @@
 import { usePathname, useRouter } from "next/navigation";
 import { AppLink } from "@/components/app-link";
 import { staffPaths } from "@/lib/paths";
+import type { AppRole } from "@/types/models";
 
 type NavItem = { href: string; label: string };
-type AppRole = "brigadnik" | "manager" | "admin" | "superadmin";
 type UserRecordLike = {
   name: string;
   role: AppRole;

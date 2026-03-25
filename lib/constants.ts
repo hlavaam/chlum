@@ -8,7 +8,7 @@ import type {
   WorkPeriod,
 } from "@/types/models";
 
-export const APP_ROLES: AppRole[] = ["brigadnik", "manager", "admin", "superadmin"];
+export const APP_ROLES: AppRole[] = ["brigadnik", "base", "manager", "admin", "superadmin"];
 export const STAFF_ROLES: StaffRole[] = ["plac", "kitchen", "cleaning"];
 export const SHIFT_TYPES: ShiftType[] = ["restaurant", "wedding", "event"];
 export const EVENT_TYPES: EventType[] = ["wedding", "event"];
@@ -22,6 +22,7 @@ export const WORK_DAY_PREFERENCES: WorkDayPreference[] = ["weekends", "weekdays"
 
 export const roleLabels: Record<AppRole, string> = {
   brigadnik: "Brigádník",
+  base: "Základna",
   manager: "Manažer",
   admin: "Admin",
   superadmin: "Super admin",

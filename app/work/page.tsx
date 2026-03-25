@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { loginWorkAction } from "@/lib/actions";
-import { isManagerRole } from "@/lib/auth/role-access";
+import { isBaseRole, isManagerRole } from "@/lib/auth/role-access";
 import { getCurrentUser } from "@/lib/auth/session";
 import { workPaths } from "@/lib/paths";
 
@@ -16,6 +16,9 @@ function readString(value: string | string[] | undefined) {
 export default async function WorkLoginPage({ searchParams }: Props) {
   const user = await getCurrentUser();
   if (user) {
+    if (isBaseRole(user.role)) {
+      redirect(workPaths.base);
+    }
     redirect(isManagerRole(user.role) ? workPaths.schedule : workPaths.employees);
   }
 

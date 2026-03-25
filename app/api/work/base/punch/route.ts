@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 
+import { canUseBaseTerminalRole } from "@/lib/auth/role-access";
 import { verifyPassword } from "@/lib/auth/password";
-import { getCurrentUser, hasWorkBaseAccess } from "@/lib/auth/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import { workPaths } from "@/lib/paths";
 import { baseAttendanceService } from "@/lib/services/base-attendance";
 import { resolveBaseAttendanceToken } from "@/lib/services/base-attendance-qr";
@@ -44,10 +45,10 @@ async function resolveTargetUser(body: PunchBody) {
 
 export async function POST(request: Request) {
   const body = (await request.json()) as PunchBody;
-  const [currentUser, baseAccess] = await Promise.all([getCurrentUser(), hasWorkBaseAccess()]);
+  const currentUser = await getCurrentUser();
 
-  if (!currentUser && !baseAccess) {
-    return NextResponse.json({ error: "Základna je zamčená." }, { status: 401 });
+  if (!currentUser || !canUseBaseTerminalRole(currentUser.role)) {
+    return NextResponse.json({ error: "Základna vyžaduje přihlášený účet." }, { status: 401 });
   }
 
   if (!body?.locationId) {

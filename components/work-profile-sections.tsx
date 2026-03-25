@@ -22,6 +22,10 @@ type AccountSectionProps = {
   user: UserRecord;
   redirectTo: string;
   feedback?: FeedbackState;
+  activeBaseRecord?: {
+    clockInAt: string;
+    clockInLocationId: string;
+  } | null;
 };
 
 type PreferencesSectionProps = {
@@ -63,7 +67,7 @@ function accountErrorMessage(error?: string) {
   }
 }
 
-export function WorkProfileAccountSection({ user, redirectTo, feedback }: AccountSectionProps) {
+export function WorkProfileAccountSection({ user, redirectTo, feedback, activeBaseRecord }: AccountSectionProps) {
   const accountError = accountErrorMessage(feedback?.error);
 
   return (
@@ -75,6 +79,13 @@ export function WorkProfileAccountSection({ user, redirectTo, feedback }: Accoun
       {feedback?.welcome ? <p className="badge success">Účet je připravený. Tady můžeš kdykoliv upravit celý profil.</p> : null}
       {feedback?.saved === "account" ? <p className="badge success">Účet jsme uložili.</p> : null}
       {accountError ? <p className="alert">{accountError}</p> : null}
+      {activeBaseRecord ? (
+        <p className="badge success">
+          Teď jsi v práci. Příchod zapsaný od {new Intl.DateTimeFormat("cs-CZ", { hour: "2-digit", minute: "2-digit" }).format(new Date(activeBaseRecord.clockInAt))}.
+        </p>
+      ) : (
+        <p className="badge neutral">Teď nejsi v práci.</p>
+      )}
 
       <form action={updateMyAccountAction} className="grid-form">
         <input type="hidden" name="redirectTo" value={redirectTo} />

@@ -43,7 +43,7 @@ async function WorkPeopleContent() {
           <label>
             Role účtu
             <select name="role" defaultValue="brigadnik">
-              {APP_ROLES.map((role) => (
+              {APP_ROLES.filter((role) => role !== "base").map((role) => (
                 <option key={`invite-${role}`} value={role}>
                   {roleLabels[role]}
                 </option>
@@ -107,6 +107,9 @@ async function WorkPeopleContent() {
 
       <section className="panel stack">
         <h2>Nový uživatel bez onboardingu</h2>
+        <p className="subtle">
+          Pro kioskové účty na píchačku zvol roli <strong>Základna</strong> a vyber pobočku, kterou má ten účet obsluhovat.
+        </p>
         <form action={createUserAction} className="grid-form">
           <label>
             Jméno
@@ -174,35 +177,51 @@ async function WorkPeopleContent() {
                     <td data-label="E-mail">{user.email}</td>
                     <td data-label="Role">{roleLabels[user.role]}</td>
                     <td data-label="Profil brigádníka">
-                      <div className="stack gap-sm">
-                        <p className="tiny">
-                          <strong>Onboarding:</strong> {user.onboardingCompleted ? "hotovo" : "čeká"}
-                        </p>
-                        <p className="tiny">
-                          <strong>Preferuje:</strong>{" "}
-                          {user.preferredRoles.length > 0
-                            ? user.preferredRoles.map((role) => staffRoleLabels[role]).join(", ")
-                            : "neuvedeno"}
-                        </p>
-                        <p className="tiny">
-                          <strong>Nechce:</strong>{" "}
-                          {user.excludedRoles.length > 0
-                            ? user.excludedRoles.map((role) => staffRoleLabels[role]).join(", ")
-                            : "neuvedeno"}
-                        </p>
-                        <p className="tiny">
-                          <strong>Období:</strong>{" "}
-                          {user.workPeriods.length > 0
-                            ? user.workPeriods.map((period) => workPeriodLabels[period]).join(", ")
-                            : "neuvedeno"}
-                        </p>
-                        <p className="tiny">
-                          <strong>Dny:</strong>{" "}
-                          {user.workDayPreferences.length > 0
-                            ? user.workDayPreferences.map((value) => workDayPreferenceLabels[value]).join(", ")
-                            : "neuvedeno"}
-                        </p>
-                      </div>
+                      {user.role === "base" ? (
+                        <div className="stack gap-sm">
+                          <p className="tiny">
+                            <strong>Kiosk účet:</strong> jen pro přihlášení do Základny
+                          </p>
+                          <p className="tiny">
+                            <strong>Pobočky:</strong>{" "}
+                            {user.locationIds.length > 0
+                              ? user.locationIds
+                                  .map((locationId) => locations.find((location) => location.id === locationId)?.name ?? locationId)
+                                  .join(", ")
+                              : "neuvedeno"}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="stack gap-sm">
+                          <p className="tiny">
+                            <strong>Onboarding:</strong> {user.onboardingCompleted ? "hotovo" : "čeká"}
+                          </p>
+                          <p className="tiny">
+                            <strong>Preferuje:</strong>{" "}
+                            {user.preferredRoles.length > 0
+                              ? user.preferredRoles.map((role) => staffRoleLabels[role]).join(", ")
+                              : "neuvedeno"}
+                          </p>
+                          <p className="tiny">
+                            <strong>Nechce:</strong>{" "}
+                            {user.excludedRoles.length > 0
+                              ? user.excludedRoles.map((role) => staffRoleLabels[role]).join(", ")
+                              : "neuvedeno"}
+                          </p>
+                          <p className="tiny">
+                            <strong>Období:</strong>{" "}
+                            {user.workPeriods.length > 0
+                              ? user.workPeriods.map((period) => workPeriodLabels[period]).join(", ")
+                              : "neuvedeno"}
+                          </p>
+                          <p className="tiny">
+                            <strong>Dny:</strong>{" "}
+                            {user.workDayPreferences.length > 0
+                              ? user.workDayPreferences.map((value) => workDayPreferenceLabels[value]).join(", ")
+                              : "neuvedeno"}
+                          </p>
+                        </div>
+                      )}
                     </td>
                     <td data-label="Akce">
                       <div className="stack admin-user-actions">

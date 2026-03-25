@@ -20,11 +20,14 @@ type UserOption = {
   } | null;
 };
 
-type CurrentUserOption = {
-  id: string;
+type RosterEntry = {
+  userId: string;
   name: string;
-  role: string;
-} | null;
+  staffRole: string;
+  status: string;
+  shiftId: string;
+  timeLabel: string;
+};
 
 type PunchResponse = {
   ok?: boolean;
@@ -43,15 +46,17 @@ function cx(...values: Array<string | false | null | undefined>) {
 export function WorkBaseTerminal({
   locations,
   users,
-  currentUser,
+  rosterByLocation,
+  lockSingleLocation = false,
 }: {
   locations: LocationOption[];
   users: UserOption[];
-  currentUser: CurrentUserOption;
+  rosterByLocation: Record<string, RosterEntry[]>;
+  lockSingleLocation?: boolean;
 }) {
   const router = useRouter();
   const [selectedLocationId, setSelectedLocationId] = useState(locations[0]?.id ?? "");
-  const [selectedUserId, setSelectedUserId] = useState(currentUser?.id ?? users[0]?.id ?? "");
+  const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -67,8 +72,26 @@ export function WorkBaseTerminal({
     () => users.find((user) => user.id === selectedUserId) ?? null,
     [selectedUserId, users],
   );
-  const currentUserState = currentUser ? users.find((user) => user.id === currentUser.id) ?? null : null;
   const selectedLocation = locations.find((location) => location.id === selectedLocationId) ?? null;
+  const selectedRoster = rosterByLocation[selectedLocationId] ?? [];
+  const selectableUsers = useMemo(() => {
+    const rosterIds = new Set(selectedRoster.map((entry) => entry.userId));
+    const activeIds = new Set(users.filter((user) => user.activeRecord).map((user) => user.id));
+    return users.filter((user) => rosterIds.has(user.id) || activeIds.has(user.id));
+  }, [selectedRoster, users]);
+
+  useEffect(() => {
+    if (!selectedLocationId && locations[0]) {
+      setSelectedLocationId(locations[0].id);
+    }
+  }, [locations, selectedLocationId]);
+
+  useEffect(() => {
+    const options = selectableUsers.length > 0 ? selectableUsers : users;
+    if (!options.some((user) => user.id === selectedUserId)) {
+      setSelectedUserId(options[0]?.id ?? "");
+    }
+  }, [selectableUsers, selectedUserId, users]);
 
   function stopScanner() {
     if (frameRef.current) cancelAnimationFrame(frameRef.current);
@@ -110,11 +133,6 @@ export function WorkBaseTerminal({
     } finally {
       setPending(false);
     }
-  }
-
-  async function handleSelfPunch() {
-    if (!selectedLocationId) return;
-    await submitPunch({ mode: "self", locationId: selectedLocationId });
   }
 
   async function handlePasswordPunch(event: React.FormEvent<HTMLFormElement>) {
@@ -209,6 +227,7 @@ export function WorkBaseTerminal({
               type="button"
               className={cx("base-location-chip", selectedLocationId === location.id && "active")}
               onClick={() => setSelectedLocationId(location.id)}
+              disabled={lockSingleLocation}
             >
               {location.name}
             </button>
@@ -221,26 +240,29 @@ export function WorkBaseTerminal({
         {error ? <p className="alert">{error}</p> : null}
       </div>
 
-      {currentUser ? (
-        <article className="base-terminal-card stack gap-sm">
-          <div className="row between wrap">
-            <div>
-              <p className="eyebrow">Můj příchod / odchod</p>
-              <h3>{currentUser.name}</h3>
-            </div>
-            {currentUserState?.activeRecord ? <span className="badge success">Právě na základně</span> : <span className="badge neutral">Mimo základnu</span>}
+      <article className="base-terminal-card stack gap-sm">
+        <div className="row between wrap">
+          <div>
+            <p className="eyebrow">Dnes na směně</p>
+            <h3>{selectedLocation?.name ?? "Vyber základnu"}</h3>
           </div>
-          <p className="subtle">
-            {currentUserState?.activeRecord
-              ? `Píchnuto od ${new Intl.DateTimeFormat("cs-CZ", { hour: "2-digit", minute: "2-digit" }).format(new Date(currentUserState.activeRecord.clockInAt))}.`
-              : "Klikem si zapíšeš příchod nebo odchod pod vlastním účtem."}
-          </p>
-          <button type="button" className="button" disabled={pending || !selectedLocationId} onClick={handleSelfPunch}>
-            {currentUserState?.activeRecord ? "Odpíchnout sebe" : "Píchnout sebe"}
-          </button>
-        </article>
-      ) : null}
-
+          <span className="badge neutral">{selectedRoster.length} lidí</span>
+        </div>
+        {selectedRoster.length === 0 ? <p className="subtle">Pro dnešek tu zatím nikdo není naplánovaný.</p> : null}
+        <div className="stack gap-sm">
+          {selectedRoster.map((entry) => (
+            <div key={`${entry.shiftId}-${entry.userId}-${entry.staffRole}`} className="base-roster-item">
+              <div>
+                <p><strong>{entry.name}</strong></p>
+                <p className="tiny subtle">{entry.timeLabel} • {entry.staffRole}</p>
+              </div>
+              <span className={`badge ${entry.status === "confirmed" ? "success" : "warning"}`}>
+                {entry.status === "confirmed" ? "Potvrzeno" : "Čeká"}
+              </span>
+            </div>
+          ))}
+        </div>
+      </article>
       <div className="grid-2 base-terminal-grid">
         <article className="base-terminal-card stack gap-sm">
           <div>
@@ -251,7 +273,7 @@ export function WorkBaseTerminal({
             <label>
               Brigádník
               <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
-                {users.map((user) => (
+                {(selectableUsers.length > 0 ? selectableUsers : users).map((user) => (
                   <option key={user.id} value={user.id}>
                     {user.name}
                   </option>

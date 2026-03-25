@@ -6,7 +6,7 @@ import { revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { clearSessionCookie, setSessionCookie } from "@/lib/auth/session";
-import { canUseWorkRole, isManagerRole } from "@/lib/auth/role-access";
+import { canUseWorkRole, isBaseRole, isManagerRole } from "@/lib/auth/role-access";
 import {
   APP_ROLES,
   AVAILABILITY_STATUSES,
@@ -257,6 +257,9 @@ export async function loginWorkAction(formData: FormData) {
     redirect(`${workPaths.login}?error=1`);
   }
   await setSessionCookie(user.id);
+  if (isBaseRole(user.role)) {
+    redirect(workPaths.base);
+  }
   redirect(isManagerRole(user.role) ? workPaths.schedule : workPaths.employees);
 }
 
