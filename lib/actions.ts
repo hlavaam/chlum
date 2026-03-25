@@ -940,6 +940,18 @@ export async function deleteBaseAttendanceAction(formData: FormData) {
   redirectBack(formData, workPaths.base);
 }
 
+export async function deleteBaseAttendanceBulkAction(formData: FormData) {
+  await requireRoles(["manager", "admin"]);
+  const recordIds = getStringArray(formData, "recordIds");
+  if (recordIds.length === 0) redirectBack(formData, workPaths.base);
+  for (const recordId of new Set(recordIds)) {
+    await baseAttendanceService.delete(recordId);
+  }
+  revalidateDataTags("base_attendance");
+  revalidatePath(workPaths.base);
+  redirectBack(formData, workPaths.base);
+}
+
 export async function disconnectGoogleCalendarAction(formData: FormData) {
   const user = await requireUser({ loginPath: workPaths.login });
   await safeDisconnectCalendarForUser(user.id);

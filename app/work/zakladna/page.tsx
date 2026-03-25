@@ -4,7 +4,12 @@ import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
 import { WorkAppFrame } from "@/components/work-app-frame";
 import { WorkBaseAccessForm } from "@/components/work-base-access-form";
 import { WorkBaseTerminal } from "@/components/work-base-terminal";
-import { deleteBaseAttendanceAction, logoutAction, updateBaseAttendanceAction } from "@/lib/actions";
+import {
+  deleteBaseAttendanceAction,
+  deleteBaseAttendanceBulkAction,
+  logoutAction,
+  updateBaseAttendanceAction,
+} from "@/lib/actions";
 import { canUseBaseTerminalRole, isBaseRole } from "@/lib/auth/role-access";
 import { getCurrentUser } from "@/lib/auth/session";
 import { workPaths } from "@/lib/paths";
@@ -281,6 +286,7 @@ export default async function WorkBasePage({ searchParams }: Props) {
       };
     })
     .filter((row) => row.recordsCount > 0 || row.currentLocation || row.firstTodayAt || row.lastTodayAt);
+  const selectedDayRecords = periodRecords.filter((record) => record.clockInAt.slice(0, 10) === selectedDate);
 
   if (isBaseRole(currentUser.role)) {
     return (
@@ -418,103 +424,195 @@ export default async function WorkBasePage({ searchParams }: Props) {
         </section>
 
         <section className="panel stack">
+          <div className="row between wrap">
+            <div>
+              <p className="eyebrow">Vybraný den</p>
+              <h2>Úpravy pro {formatCzDate(selectedDate)}</h2>
+            </div>
+            <span className="badge neutral">{selectedDayRecords.length} logů</span>
+          </div>
+          {selectedDayRecords.length === 0 ? <p className="subtle">Pro tenhle den zatím není žádný docházkový log.</p> : null}
+          {selectedDayRecords.length > 0 ? (
+            <div className="table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Člověk</th>
+                    <th>Příchod</th>
+                    <th>Odchod</th>
+                    <th>Celkem</th>
+                    <th>Úprava</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedDayRecords.map((record) => {
+                    const user = userById.get(record.userId);
+                    return (
+                      <tr key={`day-${record.id}`}>
+                        <td data-label="Člověk">{user?.name ?? record.userId}</td>
+                        <td data-label="Příchod">{formatDateTime(record.clockInAt)}</td>
+                        <td data-label="Odchod">{formatDateTime(record.clockOutAt)}</td>
+                        <td data-label="Celkem">{formatMinutes(minutesBetween(record.clockInAt, record.clockOutAt ?? new Date().toISOString()))}</td>
+                        <td data-label="Úprava">
+                          <div className="stack gap-sm">
+                            <form action={updateBaseAttendanceAction} className="stack gap-sm admin-inline-form">
+                              <input type="hidden" name="recordId" value={record.id} />
+                              <input type="hidden" name="redirectTo" value={redirectTo} />
+                              <label>
+                                Příchod
+                                <input type="datetime-local" name="clockInAt" defaultValue={formatDateTimeLocalValue(record.clockInAt)} required />
+                              </label>
+                              <label>
+                                Pobočka příchodu
+                                <select name="clockInLocationId" defaultValue={record.clockInLocationId}>
+                                  {visibleBaseLocations.map((location) => (
+                                    <option key={`day-in-${record.id}-${location.id}`} value={location.id}>
+                                      {location.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                Odchod
+                                <input type="datetime-local" name="clockOutAt" defaultValue={formatDateTimeLocalValue(record.clockOutAt)} />
+                              </label>
+                              <label>
+                                Pobočka odchodu
+                                <select name="clockOutLocationId" defaultValue={record.clockOutLocationId ?? record.clockInLocationId}>
+                                  {visibleBaseLocations.map((location) => (
+                                    <option key={`day-out-${record.id}-${location.id}`} value={location.id}>
+                                      {location.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <button type="submit" className="button ghost small">Uložit úpravu dne</button>
+                            </form>
+                            <form action={deleteBaseAttendanceAction} className="row gap-sm wrap admin-inline-form">
+                              <input type="hidden" name="recordId" value={record.id} />
+                              <input type="hidden" name="redirectTo" value={redirectTo} />
+                              <ConfirmSubmitButton
+                                type="submit"
+                                className="button ghost danger small"
+                                confirmMessage={`Smazat docházku pro ${user?.name ?? "uživatele"}?`}
+                              >
+                                Smazat log
+                              </ConfirmSubmitButton>
+                            </form>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="panel stack">
           <details className="stack">
             <summary className="button ghost summary-button">
               Historie docházky a ruční opravy ({periodRecords.length})
             </summary>
             {periodRecords.length === 0 ? <p className="subtle">Ve vybraném období zatím není co upravovat.</p> : null}
             {periodRecords.length > 0 ? (
-              <div className="table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Člověk</th>
-                      <th>Příchod</th>
-                      <th>Odchod</th>
-                      <th>Celkem</th>
-                      <th>Akce</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {periodRecords.map((record) => {
-                      const user = userById.get(record.userId);
-                      const inLocation = locationMap.get(record.clockInLocationId)?.name ?? record.clockInLocationId;
-                      const outLocation = record.clockOutLocationId
-                        ? (locationMap.get(record.clockOutLocationId)?.name ?? record.clockOutLocationId)
-                        : inLocation;
-                      return (
-                        <tr key={record.id}>
-                          <td data-label="Člověk">{user?.name ?? record.userId}</td>
-                          <td data-label="Příchod">
-                            <div className="stack gap-sm">
-                              <p>{formatDateTime(record.clockInAt)}</p>
-                              <p className="tiny subtle">{inLocation}</p>
-                            </div>
-                          </td>
-                          <td data-label="Odchod">
-                            <div className="stack gap-sm">
-                              <p>{formatDateTime(record.clockOutAt)}</p>
-                              <p className="tiny subtle">{record.clockOutAt ? outLocation : "otevřeno"}</p>
-                            </div>
-                          </td>
-                          <td data-label="Celkem">{formatMinutes(minutesBetween(record.clockInAt, record.clockOutAt ?? new Date().toISOString()))}</td>
-                          <td data-label="Akce">
-                            <details className="stack">
-                              <summary className="button ghost small summary-button">Upravit log</summary>
-                              <form action={updateBaseAttendanceAction} className="stack gap-sm admin-inline-form">
-                                <input type="hidden" name="recordId" value={record.id} />
-                                <input type="hidden" name="redirectTo" value={redirectTo} />
-                                <label>
-                                  Příchod
-                                  <input type="datetime-local" name="clockInAt" defaultValue={formatDateTimeLocalValue(record.clockInAt)} required />
-                                </label>
-                                <label>
-                                  Pobočka příchodu
-                                  <select name="clockInLocationId" defaultValue={record.clockInLocationId}>
-                                    {visibleBaseLocations.map((location) => (
-                                      <option key={`${record.id}-in-${location.id}`} value={location.id}>
-                                        {location.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-                                <label>
-                                  Odchod
-                                  <input type="datetime-local" name="clockOutAt" defaultValue={formatDateTimeLocalValue(record.clockOutAt)} />
-                                </label>
-                                <label>
-                                  Pobočka odchodu
-                                  <select name="clockOutLocationId" defaultValue={record.clockOutLocationId ?? record.clockInLocationId}>
-                                    {visibleBaseLocations.map((location) => (
-                                      <option key={`${record.id}-out-${location.id}`} value={location.id}>
-                                        {location.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </label>
-                                <div className="row gap-sm wrap">
-                                  <button type="submit" className="button ghost">Uložit úpravu</button>
-                                </div>
-                              </form>
-                              <form action={deleteBaseAttendanceAction} className="row gap-sm wrap admin-inline-form">
-                                <input type="hidden" name="recordId" value={record.id} />
-                                <input type="hidden" name="redirectTo" value={redirectTo} />
-                                <ConfirmSubmitButton
-                                  type="submit"
-                                  className="button ghost danger"
-                                  confirmMessage={`Smazat docházku pro ${user?.name ?? "uživatele"}?`}
-                                >
-                                  Smazat log
-                                </ConfirmSubmitButton>
-                              </form>
-                            </details>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <form action={deleteBaseAttendanceBulkAction} className="stack gap-sm">
+                <input type="hidden" name="redirectTo" value={redirectTo} />
+                <div className="row gap-sm wrap">
+                  <ConfirmSubmitButton
+                    type="submit"
+                    className="button ghost danger"
+                    confirmMessage="Smazat všechny vybrané docházkové logy?"
+                  >
+                    Smazat vybrané logy
+                  </ConfirmSubmitButton>
+                </div>
+                <div className="table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Smazat</th>
+                        <th>Člověk</th>
+                        <th>Příchod</th>
+                        <th>Odchod</th>
+                        <th>Celkem</th>
+                        <th>Akce</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {periodRecords.map((record) => {
+                        const user = userById.get(record.userId);
+                        const inLocation = locationMap.get(record.clockInLocationId)?.name ?? record.clockInLocationId;
+                        const outLocation = record.clockOutLocationId
+                          ? (locationMap.get(record.clockOutLocationId)?.name ?? record.clockOutLocationId)
+                          : inLocation;
+                        return (
+                          <tr key={record.id}>
+                            <td data-label="Smazat">
+                              <input type="checkbox" name="recordIds" value={record.id} />
+                            </td>
+                            <td data-label="Člověk">{user?.name ?? record.userId}</td>
+                            <td data-label="Příchod">
+                              <div className="stack gap-sm">
+                                <p>{formatDateTime(record.clockInAt)}</p>
+                                <p className="tiny subtle">{inLocation}</p>
+                              </div>
+                            </td>
+                            <td data-label="Odchod">
+                              <div className="stack gap-sm">
+                                <p>{formatDateTime(record.clockOutAt)}</p>
+                                <p className="tiny subtle">{record.clockOutAt ? outLocation : "otevřeno"}</p>
+                              </div>
+                            </td>
+                            <td data-label="Celkem">{formatMinutes(minutesBetween(record.clockInAt, record.clockOutAt ?? new Date().toISOString()))}</td>
+                            <td data-label="Akce">
+                              <details className="stack">
+                                <summary className="button ghost small summary-button">Upravit log</summary>
+                                <form action={updateBaseAttendanceAction} className="stack gap-sm admin-inline-form">
+                                  <input type="hidden" name="recordId" value={record.id} />
+                                  <input type="hidden" name="redirectTo" value={redirectTo} />
+                                  <label>
+                                    Příchod
+                                    <input type="datetime-local" name="clockInAt" defaultValue={formatDateTimeLocalValue(record.clockInAt)} required />
+                                  </label>
+                                  <label>
+                                    Pobočka příchodu
+                                    <select name="clockInLocationId" defaultValue={record.clockInLocationId}>
+                                      {visibleBaseLocations.map((location) => (
+                                        <option key={`${record.id}-in-${location.id}`} value={location.id}>
+                                          {location.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  <label>
+                                    Odchod
+                                    <input type="datetime-local" name="clockOutAt" defaultValue={formatDateTimeLocalValue(record.clockOutAt)} />
+                                  </label>
+                                  <label>
+                                    Pobočka odchodu
+                                    <select name="clockOutLocationId" defaultValue={record.clockOutLocationId ?? record.clockInLocationId}>
+                                      {visibleBaseLocations.map((location) => (
+                                        <option key={`${record.id}-out-${location.id}`} value={location.id}>
+                                          {location.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  <div className="row gap-sm wrap">
+                                    <button type="submit" className="button ghost">Uložit úpravu</button>
+                                  </div>
+                                </form>
+                              </details>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </form>
             ) : null}
           </details>
         </section>

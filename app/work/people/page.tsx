@@ -1,4 +1,5 @@
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { CopyButton } from "@/components/copy-button";
 import { WorkAppFrame } from "@/components/work-app-frame";
 import {
   createInviteAction,
@@ -140,6 +141,7 @@ async function WorkPeopleContent() {
             </div>
             <div className="stack gap-sm">
               <input readOnly value={`${siteUrl}${workPaths.join(invite.token)}`} />
+              <CopyButton value={`${siteUrl}${workPaths.join(invite.token)}`} />
               <form action={deleteInviteAction}>
                 <input type="hidden" name="inviteId" value={invite.id} />
                 <ConfirmSubmitButton
