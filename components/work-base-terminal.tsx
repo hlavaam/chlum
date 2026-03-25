@@ -23,10 +23,11 @@ type UserOption = {
 type RosterEntry = {
   userId: string;
   name: string;
-  staffRole: string;
-  status: string;
-  shiftId: string;
-  timeLabel: string;
+  present: boolean;
+  waiting: boolean;
+  done: boolean;
+  clockInTime?: string | null;
+  clockOutTime?: string | null;
 };
 
 type PunchResponse = {
@@ -57,7 +58,7 @@ export function WorkBaseTerminal({
   const router = useRouter();
   const [selectedLocationId, setSelectedLocationId] = useState(locations[0]?.id ?? "");
   const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
-  const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,17 +69,17 @@ export function WorkBaseTerminal({
   const streamRef = useRef<MediaStream | null>(null);
   const frameRef = useRef<number | null>(null);
 
-  const selectedUser = useMemo(
-    () => users.find((user) => user.id === selectedUserId) ?? null,
-    [selectedUserId, users],
-  );
   const selectedLocation = locations.find((location) => location.id === selectedLocationId) ?? null;
   const selectedRoster = rosterByLocation[selectedLocationId] ?? [];
+  const selectedRosterEntry = selectedRoster.find((entry) => entry.userId === selectedUserId) ?? null;
   const selectableUsers = useMemo(() => {
     const rosterIds = new Set(selectedRoster.map((entry) => entry.userId));
-    const activeIds = new Set(users.filter((user) => user.activeRecord).map((user) => user.id));
-    return users.filter((user) => rosterIds.has(user.id) || activeIds.has(user.id));
+    return users.filter((user) => rosterIds.has(user.id));
   }, [selectedRoster, users]);
+  const selectedUser = useMemo(
+    () => selectableUsers.find((user) => user.id === selectedUserId) ?? users.find((user) => user.id === selectedUserId) ?? null,
+    [selectedUserId, selectableUsers, users],
+  );
 
   useEffect(() => {
     if (!selectedLocationId && locations[0]) {
@@ -87,9 +88,10 @@ export function WorkBaseTerminal({
   }, [locations, selectedLocationId]);
 
   useEffect(() => {
-    const options = selectableUsers.length > 0 ? selectableUsers : users;
-    if (!options.some((user) => user.id === selectedUserId)) {
-      setSelectedUserId(options[0]?.id ?? "");
+    const nextUsers = selectableUsers.length > 0 ? selectableUsers : users;
+    if (!nextUsers.some((user) => user.id === selectedUserId)) {
+      setSelectedUserId(nextUsers[0]?.id ?? "");
+      setPin("");
     }
   }, [selectableUsers, selectedUserId, users]);
 
@@ -123,10 +125,8 @@ export function WorkBaseTerminal({
         setError(result.error ?? "Píchačka se nepovedla.");
         return;
       }
-      setPassword("");
-      setMessage(
-        `${result.user?.name ?? "Brigádník"}: ${result.action === "clock_in" ? "příchod zapsán" : "odchod zapsán"}.`,
-      );
+      setPin("");
+      setMessage(`${result.user?.name ?? "Brigádník"}: ${result.action === "clock_in" ? "příchod zapsán" : "odchod zapsán"}.`);
       router.refresh();
     } catch {
       setError("Nepodařilo se spojit se serverem.");
@@ -135,19 +135,42 @@ export function WorkBaseTerminal({
     }
   }
 
-  async function handlePasswordPunch(event: React.FormEvent<HTMLFormElement>) {
+  async function handlePinPunch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedLocationId || !selectedUserId || !password) {
-      setError("Vyber brigádníka, základnu a zadej heslo.");
+    if (!selectedLocationId || !selectedUserId || pin.length !== 4) {
+      setError("Vyber brigádníka, základnu a zadej 4místný PIN.");
       return;
     }
     await submitPunch({
-      mode: "password",
+      mode: "pin",
       locationId: selectedLocationId,
       userId: selectedUserId,
-      password,
+      pin,
     });
   }
+
+  function pushDigit(value: string) {
+    setPin((current) => (current.length >= 4 ? current : `${current}${value}`));
+  }
+
+  function clearPin() {
+    setPin("");
+  }
+
+  function backspacePin() {
+    setPin((current) => current.slice(0, -1));
+  }
+
+  useEffect(() => {
+    if (pin.length === 4 && selectedLocationId && selectedUserId && !pending) {
+      void submitPunch({
+        mode: "pin",
+        locationId: selectedLocationId,
+        userId: selectedUserId,
+        pin,
+      });
+    }
+  }, [pin]);
 
   useEffect(() => {
     if (!scannerOpen) {
@@ -194,7 +217,7 @@ export function WorkBaseTerminal({
               return;
             }
           } catch {
-            // Ignore detector frame errors and keep scanning.
+            // ignore frame errors
           }
           frameRef.current = requestAnimationFrame(scanFrame);
         };
@@ -226,103 +249,120 @@ export function WorkBaseTerminal({
               key={location.id}
               type="button"
               className={cx("base-location-chip", selectedLocationId === location.id && "active")}
-              onClick={() => setSelectedLocationId(location.id)}
+              onClick={() => {
+                setSelectedLocationId(location.id);
+                setPin("");
+              }}
               disabled={lockSingleLocation}
             >
               {location.name}
             </button>
           ))}
         </div>
-        <p className="subtle">
-          Vybraná základna: <strong>{selectedLocation?.name ?? "Nevybráno"}</strong>
-        </p>
         {message ? <p className="badge success">{message}</p> : null}
         {error ? <p className="alert">{error}</p> : null}
       </div>
 
-      <article className="base-terminal-card stack gap-sm">
-        <div className="row between wrap">
-          <div>
-            <p className="eyebrow">Dnes na směně</p>
-            <h3>{selectedLocation?.name ?? "Vyber základnu"}</h3>
-          </div>
-          <span className="badge neutral">{selectedRoster.length} lidí</span>
-        </div>
-        {selectedRoster.length === 0 ? <p className="subtle">Pro dnešek tu zatím nikdo není naplánovaný.</p> : null}
-        <div className="stack gap-sm">
-          {selectedRoster.map((entry) => (
-            <div key={`${entry.shiftId}-${entry.userId}-${entry.staffRole}`} className="base-roster-item">
-              <div>
-                <p><strong>{entry.name}</strong></p>
-                <p className="tiny subtle">{entry.timeLabel} • {entry.staffRole}</p>
-              </div>
-              <span className={`badge ${entry.status === "confirmed" ? "success" : "warning"}`}>
-                {entry.status === "confirmed" ? "Potvrzeno" : "Čeká"}
-              </span>
-            </div>
-          ))}
-        </div>
-      </article>
       <div className="grid-2 base-terminal-grid">
         <article className="base-terminal-card stack gap-sm">
-          <div>
-            <p className="eyebrow">Přes heslo</p>
-            <h3>Vyber brigádníka</h3>
+          <div className="row between wrap">
+            <div>
+              <p className="eyebrow">Dnešní brigádníci</p>
+              <h3>{selectedLocation?.name ?? "Vyber pobočku"}</h3>
+            </div>
+            <span className="badge neutral">{selectedRoster.length} jmen</span>
           </div>
-          <form className="stack gap-sm" onSubmit={handlePasswordPunch}>
-            <label>
-              Brigádník
-              <select value={selectedUserId} onChange={(event) => setSelectedUserId(event.target.value)}>
-                {(selectableUsers.length > 0 ? selectableUsers : users).map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="subtle">
-              {selectedUser?.activeRecord
-                ? "Vybraný brigádník je právě píchnutý. Tlačítko zapíše odchod."
-                : "Vybraný brigádník zatím není píchnutý. Tlačítko zapíše příchod."}
-            </p>
-            <label>
-              Heslo
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="Zadej heslo brigádníka"
-                required
-              />
-            </label>
-            <button type="submit" className="button ghost" disabled={pending || !selectedLocationId}>
-              {selectedUser?.activeRecord ? "Odpíchnout přes heslo" : "Píchnout přes heslo"}
-            </button>
-          </form>
+          {selectedRoster.length === 0 ? <p className="subtle">Na dnešek tu zatím není nikdo rozepsaný.</p> : null}
+          <div className="stack gap-sm">
+            {selectedRoster.map((entry) => (
+              <button
+                key={`${entry.userId}-${entry.name}`}
+                type="button"
+                className={cx("base-roster-item", selectedUserId === entry.userId && "active")}
+                onClick={() => {
+                  setSelectedUserId(entry.userId);
+                  setPin("");
+                  setError(null);
+                }}
+              >
+                <div>
+                  <p><strong>{entry.name}</strong></p>
+                  {entry.clockInTime || entry.clockOutTime ? (
+                    <p className="tiny subtle">
+                      {entry.clockInTime ? `Příchod ${entry.clockInTime}` : ""}
+                      {entry.clockInTime && entry.clockOutTime ? " • " : ""}
+                      {entry.clockOutTime ? `Odchod ${entry.clockOutTime}` : ""}
+                    </p>
+                  ) : null}
+                </div>
+                <span className={`badge ${entry.present ? "success" : entry.done ? "neutral" : entry.waiting ? "warning" : "neutral"}`}>
+                  {entry.present ? "Přítomen" : entry.done ? "Hotovo" : entry.waiting ? "Čeká" : "Mimo"}
+                </span>
+              </button>
+            ))}
+          </div>
         </article>
 
-        <article className="base-terminal-card stack gap-sm">
-          <div>
-            <p className="eyebrow">Přes QR</p>
-            <h3>Naskenovat osobní kód</h3>
-          </div>
-          <p className="subtle">
-            Brigádník otevře svůj QR v profilu a kamera ho načte. Když už je píchnutý, stejný QR zapíše odchod.
-          </p>
-          <div className="row gap-sm wrap">
-            <button type="button" className="button ghost" disabled={pending || !selectedLocationId} onClick={() => setScannerOpen((value) => !value)}>
-              {scannerOpen ? "Zavřít kameru" : "Spustit kameru"}
-            </button>
-            {!scannerSupported && scannerOpen ? <span className="subtle tiny">Tenhle prohlížeč QR skener nepodporuje.</span> : null}
-          </div>
-          {scannerOpen ? (
-            <div className="base-scanner-box">
-              <video ref={videoRef} className="base-scanner-video" muted playsInline />
-              <div className="base-scanner-frame" aria-hidden="true" />
-              <p className="subtle tiny">{scannerReady ? "Zaměř QR doprostřed rámečku." : "Spouštím kameru..."}</p>
+        <div className="stack gap-lg">
+          <article className="base-terminal-card stack gap-sm">
+            <div>
+              <p className="eyebrow">PIN</p>
+              <h3>{selectedUser?.name ?? "Klikni na jméno"}</h3>
             </div>
-          ) : null}
-        </article>
+            <p className="subtle">
+              {selectedRosterEntry?.present
+                ? "Brigádník je právě přítomen. Po zadání PINu se zapíše odchod."
+                : "Po zadání 4místného PINu se zapíše příchod nebo odchod."}
+            </p>
+            <form className="stack gap-sm" onSubmit={handlePinPunch}>
+              <div className="base-pin-display" aria-live="polite">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <span key={`pin-slot-${index}`} className={cx("base-pin-slot", index < pin.length && "filled")} />
+                ))}
+              </div>
+              <div className="base-keypad">
+                {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
+                  <button key={digit} type="button" className="base-key" onClick={() => pushDigit(digit)}>
+                    {digit}
+                  </button>
+                ))}
+                <button type="button" className="base-key ghost" onClick={clearPin}>
+                  C
+                </button>
+                <button type="button" className="base-key" onClick={() => pushDigit("0")}>
+                  0
+                </button>
+                <button type="button" className="base-key ghost" onClick={backspacePin}>
+                  ←
+                </button>
+              </div>
+              <button type="submit" className="button ghost" disabled={pending || !selectedUserId || pin.length !== 4}>
+                Potvrdit PIN
+              </button>
+            </form>
+          </article>
+
+          <article className="base-terminal-card stack gap-sm">
+            <div>
+              <p className="eyebrow">QR kód</p>
+              <h3>Naskenovat brigádníka</h3>
+            </div>
+            <p className="subtle">QR z profilu brigádníka zapíše příchod nebo odchod automaticky.</p>
+            <div className="row gap-sm wrap">
+              <button type="button" className="button ghost" disabled={pending || !selectedLocationId} onClick={() => setScannerOpen((value) => !value)}>
+                {scannerOpen ? "Zavřít kameru" : "Spustit kameru"}
+              </button>
+              {!scannerSupported && scannerOpen ? <span className="subtle tiny">Tenhle prohlížeč QR skener nepodporuje.</span> : null}
+            </div>
+            {scannerOpen ? (
+              <div className="base-scanner-box">
+                <video ref={videoRef} className="base-scanner-video" muted playsInline />
+                <div className="base-scanner-frame" aria-hidden="true" />
+                <p className="subtle tiny">{scannerReady ? "Zaměř QR doprostřed rámečku." : "Spouštím kameru..."}</p>
+              </div>
+            ) : null}
+          </article>
+        </div>
       </div>
     </section>
   );

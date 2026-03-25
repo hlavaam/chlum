@@ -18,9 +18,9 @@ type Props = {
   error?: string;
 };
 
-type StepId = "intro" | "name" | "email" | "password" | "preferred" | "excluded" | "periods" | "days" | "finish";
+type StepId = "intro" | "name" | "email" | "password" | "pin" | "preferred" | "excluded" | "periods" | "days" | "finish";
 
-const STEPS: StepId[] = ["intro", "name", "email", "password", "preferred", "excluded", "periods", "days", "finish"];
+const STEPS: StepId[] = ["intro", "name", "email", "password", "pin", "preferred", "excluded", "periods", "days", "finish"];
 
 function toggleValue(values: string[], value: string) {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
@@ -35,6 +35,7 @@ export function WorkOnboardingWizard({
   const [name, setName] = useState("");
   const [email, setEmail] = useState(inviteEmail ?? "");
   const [password, setPassword] = useState("");
+  const [pin, setPin] = useState("");
   const [preferredRoles, setPreferredRoles] = useState<string[]>([]);
   const [excludedRoles, setExcludedRoles] = useState<string[]>([]);
   const [workPeriods, setWorkPeriods] = useState<string[]>([]);
@@ -56,6 +57,7 @@ export function WorkOnboardingWizard({
     if (step === "name") return name.trim().length > 1;
     if (step === "email") return inviteEmail ? true : email.includes("@");
     if (step === "password") return password.length >= 6;
+    if (step === "pin") return /^\d{4}$/.test(pin);
     return true;
   }
 
@@ -123,6 +125,26 @@ export function WorkOnboardingWizard({
               <label className="wizard-field">
                 Heslo
                 <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} minLength={6} />
+              </label>
+            </div>
+          ) : null}
+
+          {step === "pin" ? (
+            <div className="wizard-screen active">
+              <div className="wizard-step-copy">
+                <h2>Nastav si PIN do Základny</h2>
+                <p className="subtle">Čtyři čísla. Tímhle PINem se budeš píchat na kiosku.</p>
+              </div>
+              <label className="wizard-field">
+                4místný PIN
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]{4}"
+                  value={pin}
+                  onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="1234"
+                />
               </label>
             </div>
           ) : null}
@@ -223,13 +245,15 @@ export function WorkOnboardingWizard({
           {error === "exists" ? <p className="alert">Uživatel s tímto e-mailem už existuje.</p> : null}
           {error === "email" ? <p className="alert">Doplň prosím e-mail.</p> : null}
           {error === "password" ? <p className="alert">Heslo musí mít aspoň 6 znaků.</p> : null}
-          {error && !["exists", "email", "password"].includes(error) ? <p className="alert">Formulář prosím zkus vyplnit znovu.</p> : null}
+          {error === "pin" ? <p className="alert">PIN musí mít přesně 4 čísla.</p> : null}
+          {error && !["exists", "email", "password", "pin"].includes(error) ? <p className="alert">Formulář prosím zkus vyplnit znovu.</p> : null}
 
           <form action={completeInviteAction} className="wizard-actions">
             <input type="hidden" name="token" value={token} />
             <input type="hidden" name="name" value={name} />
             {!inviteEmail ? <input type="hidden" name="email" value={email} /> : null}
             <input type="hidden" name="password" value={password} />
+            <input type="hidden" name="pin" value={pin} />
             {preferredRoles.map((role) => (
               <input key={`hidden-preferred-${role}`} type="hidden" name="preferredRoles" value={role} />
             ))}

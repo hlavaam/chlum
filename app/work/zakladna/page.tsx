@@ -6,9 +6,8 @@ import { WorkAppFrame } from "@/components/work-app-frame";
 import { WorkBaseAccessForm } from "@/components/work-base-access-form";
 import { WorkBaseTerminal } from "@/components/work-base-terminal";
 import { deleteBaseAttendanceAction, logoutAction, updateBaseAttendanceAction } from "@/lib/actions";
-import { canUseBaseTerminalRole, isBaseRole, isManagerRole } from "@/lib/auth/role-access";
+import { canUseBaseTerminalRole, isBaseRole } from "@/lib/auth/role-access";
 import { getCurrentUser } from "@/lib/auth/session";
-import { staffRoleLabels } from "@/lib/constants";
 import { workPaths } from "@/lib/paths";
 import { baseAttendanceService } from "@/lib/services/base-attendance";
 import { getDayDetailsCached, getLocationsCached, getUsersCached } from "@/lib/services/cached-reads";
@@ -97,52 +96,118 @@ export default async function WorkBasePage({ searchParams }: Props) {
     return normalized.includes("chlum") || normalized.includes("vysker");
   });
 
-  const allowedLocationIds = isBaseRole(currentUser.role) && currentUser.locationIds.length > 0
-    ? new Set(currentUser.locationIds)
-    : null;
-  const visibleBaseLocations = allowedLocationIds
-    ? baseLocations.filter((location) => allowedLocationIds.has(location.id))
+  const allowedLocationIds = isBaseRole(currentUser.role) ? new Set(currentUser.locationIds) : null;
+  const visibleBaseLocations = isBaseRole(currentUser.role)
+    ? baseLocations.filter((location) => allowedLocationIds?.has(location.id))
     : baseLocations;
 
   const activeRecordByUserId = new Map(activeRecords.map((record) => [record.userId, record] as const));
   const locationMap = new Map(locations.map((location) => [location.id, location]));
   const userById = new Map(users.map((user) => [user.id, user]));
-  const rosterByLocation = new Map<
+  const rosterSeedByLocation = new Map<
     string,
-    Array<{
-      userId: string;
-      name: string;
-      staffRole: string;
-      status: string;
-      shiftId: string;
-      timeLabel: string;
-    }>
+    Map<
+      string,
+      {
+        userId: string;
+        name: string;
+        present: boolean;
+        waiting: boolean;
+        done: boolean;
+        clockInTime: string | null;
+        clockOutTime: string | null;
+      }
+    >
   >();
+
+  function ensureRosterEntry(locationId: string, userId: string, name: string) {
+    const rosterMap = rosterSeedByLocation.get(locationId) ?? new Map();
+    const existing = rosterMap.get(userId);
+    if (existing) return existing;
+    const created = {
+      userId,
+      name,
+      present: false,
+      waiting: false,
+      done: false,
+      clockInTime: null,
+      clockOutTime: null,
+    };
+    rosterMap.set(userId, created);
+    rosterSeedByLocation.set(locationId, rosterMap);
+    return created;
+  }
 
   for (const detail of todayDetails) {
     if (allowedLocationIds && !allowedLocationIds.has(detail.shift.locationId)) continue;
-    const list = rosterByLocation.get(detail.shift.locationId) ?? [];
     for (const assignment of detail.assignments) {
       const user = userById.get(assignment.userId);
-      if (!user) continue;
-      list.push({
-        userId: user.id,
-        name: user.name,
-        staffRole: staffRoleLabels[assignment.staffRole] ?? assignment.staffRole,
-        status: assignment.status,
-        shiftId: detail.shift.id,
-        timeLabel: `${detail.shift.startTime}–${detail.shift.endTime}`,
-      });
+      if (!user || user.role !== "brigadnik" || !user.active) continue;
+      const entry = ensureRosterEntry(detail.shift.locationId, user.id, user.name);
+      entry.waiting = true;
     }
-    rosterByLocation.set(detail.shift.locationId, list);
   }
+
+  const latestTodayRecordByLocationAndUser = new Map<string, (typeof records)[number]>();
+  const todayRecords = [...records]
+    .filter((record) => {
+      if (record.clockInAt.slice(0, 10) !== todayDate) return false;
+      if (!allowedLocationIds) return true;
+      return allowedLocationIds.has(record.clockInLocationId) || (record.clockOutLocationId ? allowedLocationIds.has(record.clockOutLocationId) : false);
+    })
+    .sort((a, b) => (b.clockOutAt ?? b.clockInAt).localeCompare(a.clockOutAt ?? a.clockInAt));
+
+  for (const record of todayRecords) {
+    const key = `${record.clockInLocationId}:${record.userId}`;
+    if (!latestTodayRecordByLocationAndUser.has(key)) {
+      latestTodayRecordByLocationAndUser.set(key, record);
+    }
+  }
+
+  for (const record of activeRecords) {
+    if (allowedLocationIds && !allowedLocationIds.has(record.clockInLocationId)) continue;
+    const user = userById.get(record.userId);
+    if (!user || user.role !== "brigadnik" || !user.active) continue;
+    ensureRosterEntry(record.clockInLocationId, user.id, user.name);
+  }
+
+  for (const [key, record] of latestTodayRecordByLocationAndUser) {
+    const [locationId, userId] = key.split(":");
+    const user = userById.get(userId);
+    if (!user || user.role !== "brigadnik" || !user.active) continue;
+    const entry = ensureRosterEntry(locationId, user.id, user.name);
+    entry.waiting = false;
+    entry.done = Boolean(record.clockOutAt);
+    entry.clockInTime = formatTime(record.clockInAt);
+    entry.clockOutTime = record.clockOutAt ? formatTime(record.clockOutAt) : null;
+  }
+
+  for (const record of activeRecords) {
+    if (allowedLocationIds && !allowedLocationIds.has(record.clockInLocationId)) continue;
+    const user = userById.get(record.userId);
+    if (!user || user.role !== "brigadnik" || !user.active) continue;
+    const entry = ensureRosterEntry(record.clockInLocationId, user.id, user.name);
+    entry.present = true;
+    entry.waiting = false;
+    entry.done = false;
+    entry.clockInTime = formatTime(record.clockInAt);
+    entry.clockOutTime = null;
+  }
+
+  const rosterByLocation = new Map(
+    visibleBaseLocations.map((location) => [
+      location.id,
+      Array.from((rosterSeedByLocation.get(location.id) ?? new Map()).values()).sort((a, b) => {
+        if (a.present !== b.present) return a.present ? -1 : 1;
+        if (a.done !== b.done) return a.done ? 1 : -1;
+        return a.name.localeCompare(b.name, "cs");
+      }),
+    ] as const),
+  );
 
   const rosterUserIds = new Set<string>();
   for (const entries of rosterByLocation.values()) {
     for (const entry of entries) rosterUserIds.add(entry.userId);
-  }
-  for (const record of activeRecords) {
-    rosterUserIds.add(record.userId);
   }
 
   const brigadnici = users
@@ -191,6 +256,12 @@ export default async function WorkBasePage({ searchParams }: Props) {
     }));
 
   const userMap = new Map(attendanceUsers.map((user) => [user.id, user]));
+  const todayLocationOverview = visibleBaseLocations
+    .map((location) => ({
+      location,
+      entries: rosterByLocation.get(location.id) ?? [],
+    }))
+    .filter((entry) => entry.entries.length > 0);
 
   const managerSummaries = attendanceUsers
     .map((user) => {
@@ -224,7 +295,7 @@ export default async function WorkBasePage({ searchParams }: Props) {
       rosterByLocation={Object.fromEntries(
         visibleBaseLocations.map((location) => [location.id, rosterByLocation.get(location.id) ?? []]),
       )}
-      lockSingleLocation={isBaseRole(currentUser.role)}
+      lockSingleLocation={visibleBaseLocations.length <= 1}
     />
   );
 
@@ -245,6 +316,7 @@ export default async function WorkBasePage({ searchParams }: Props) {
             <p className="subtle">
               Přihlášený účet: <strong>{currentUser.name}</strong>. Vidíš jen dnešní brigádníky pro svoje pobočky.
             </p>
+            {visibleBaseLocations.length === 0 ? <p className="alert">Tomuhle účtu Základna zatím není přiřazená žádná pobočka.</p> : null}
           </section>
           {terminal}
         </div>
@@ -271,6 +343,46 @@ export default async function WorkBasePage({ searchParams }: Props) {
         </section>
 
         {terminal}
+
+        <section className="panel stack">
+          <div className="row between wrap">
+            <div>
+              <p className="eyebrow">Dnes na základně</p>
+              <h2>Kdo je kde</h2>
+            </div>
+            <span className="badge neutral">{todayLocationOverview.reduce((sum, item) => sum + item.entries.length, 0)} lidí dnes v přehledu</span>
+          </div>
+          {todayLocationOverview.length === 0 ? <p className="subtle">Na dnešek zatím nejsou brigádníci rozepsaní ani píchnutí.</p> : null}
+          <div className="grid-2">
+            {todayLocationOverview.map(({ location, entries }) => (
+              <article key={location.id} className="base-stat-card stack gap-sm">
+                <div className="row between wrap">
+                  <div>
+                    <p className="eyebrow">Pobočka</p>
+                    <h3>{location.name}</h3>
+                  </div>
+                  <span className="badge neutral">{entries.length} jmen</span>
+                </div>
+                <div className="stack gap-sm">
+                  {entries.map((entry) => (
+                    <div key={`${location.id}-${entry.userId}`} className="base-roster-item">
+                      <div>
+                        <p><strong>{entry.name}</strong></p>
+                        <p className="tiny subtle">
+                          {entry.clockInTime ? `Příchod ${entry.clockInTime}` : "Bez příchodu"}
+                          {entry.clockOutTime ? ` • Odchod ${entry.clockOutTime}` : ""}
+                        </p>
+                      </div>
+                      <span className={`badge ${entry.present ? "success" : entry.done ? "neutral" : entry.waiting ? "warning" : "neutral"}`}>
+                        {entry.present ? "Přítomen" : entry.done ? "Hotovo" : entry.waiting ? "Čeká" : "Mimo"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
 
         <section className="panel stack">
           <div className="row between wrap">

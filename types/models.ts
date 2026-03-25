@@ -8,7 +8,7 @@ export type WorkPeriod = "before_summer" | "summer";
 export type WorkDayPreference = "weekends" | "weekdays";
 export type CalendarProvider = "google";
 export type CalendarSyncStatus = "active" | "deleted";
-export type BaseAttendanceMethod = "self" | "password" | "qr";
+export type BaseAttendanceMethod = "self" | "pin" | "password" | "qr";
 
 export interface DailyMenuItem {
   category: string;
@@ -50,6 +50,7 @@ export interface UserRecord extends BaseRecord {
   photoKey?: string;
   photoContentType?: string;
   passwordHash: string;
+  pinHash?: string;
   role: AppRole;
   active: boolean;
   locationIds: string[];

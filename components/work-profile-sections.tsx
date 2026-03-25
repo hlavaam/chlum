@@ -56,6 +56,8 @@ function accountErrorMessage(error?: string) {
       return "Tenhle e-mail už v systému používá jiný účet.";
     case "account_password":
       return "Nové heslo musí mít aspoň 6 znaků.";
+    case "account_pin":
+      return "PIN musí mít přesně 4 čísla.";
     case "account_photo":
       return "Vyber fotku, kterou chceš nahrát.";
     case "account_photo_type":
@@ -100,6 +102,16 @@ export function WorkProfileAccountSection({ user, redirectTo, feedback, activeBa
         <label className="full">
           Nové heslo
           <input type="password" name="password" minLength={6} placeholder="Nech prázdné, pokud ho nechceš měnit" />
+        </label>
+        <label className="full">
+          PIN do Základny
+          <input
+            type="password"
+            name="pin"
+            inputMode="numeric"
+            pattern="[0-9]{4}"
+            placeholder="4 čísla pro píchání"
+          />
         </label>
         <button type="submit" className="button">
           Uložit účet
@@ -269,7 +281,7 @@ export async function WorkBaseQrSection({ user }: BaseQrSectionProps) {
         <h2>Můj QR kód pro píchačku</h2>
       </div>
       <p className="subtle">
-        Tenhle kód otevře příchod nebo odchod na základně přes kameru. Když QR zrovna nejde, můžeš se píchnout i přes heslo.
+        Tenhle kód otevře příchod nebo odchod na základně přes kameru. Když QR zrovna nejde, můžeš se píchnout i přes svůj PIN.
       </p>
       <div className="base-profile-qr">
         <img src={qrDataUrl} alt={`QR kód pro ${user.name}`} />

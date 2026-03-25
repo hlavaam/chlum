@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { revalidatePath, revalidateTag } from "next/cache";
 
-import { canUseBaseTerminalRole } from "@/lib/auth/role-access";
+import { canUseBaseTerminalRole, isBaseRole } from "@/lib/auth/role-access";
 import { verifyPassword } from "@/lib/auth/password";
 import { getCurrentUser } from "@/lib/auth/session";
 import { workPaths } from "@/lib/paths";
 import { baseAttendanceService } from "@/lib/services/base-attendance";
 import { resolveBaseAttendanceToken } from "@/lib/services/base-attendance-qr";
+import { getDayDetailsCached } from "@/lib/services/cached-reads";
 import { usersService } from "@/lib/services/users";
+import { toDateKey } from "@/lib/utils";
 
 type PunchBody =
   | {
@@ -15,10 +17,10 @@ type PunchBody =
       locationId: string;
     }
   | {
-      mode: "password";
+      mode: "pin";
       locationId: string;
       userId: string;
-      password: string;
+      pin: string;
     }
   | {
       mode: "qr";
@@ -31,9 +33,9 @@ async function resolveTargetUser(body: PunchBody) {
     return getCurrentUser();
   }
 
-  if (body.mode === "password") {
+  if (body.mode === "pin") {
     const user = await usersService.findById(body.userId);
-    if (!user || !user.active || !verifyPassword(body.password, user.passwordHash)) return null;
+    if (!user || !user.active || !user.pinHash || !verifyPassword(body.pin, user.pinHash)) return null;
     return user;
   }
 
@@ -58,6 +60,37 @@ export async function POST(request: Request) {
   const user = await resolveTargetUser(body);
   if (!user) {
     return NextResponse.json({ error: "Nepodařilo se ověřit brigádníka." }, { status: 401 });
+  }
+  if (user.role !== "brigadnik") {
+    return NextResponse.json({ error: "Píchačka je jen pro brigádníky." }, { status: 400 });
+  }
+
+  const activeRecord = await baseAttendanceService.activeForUser(user.id);
+  if (activeRecord && activeRecord.clockInLocationId !== body.locationId) {
+    return NextResponse.json(
+      { error: "Brigádník je právě píchnutý na jiné pobočce. Přepni se tam a odchod zapiš tam." },
+      { status: 409 },
+    );
+  }
+
+  if (isBaseRole(currentUser.role)) {
+    const hasLocationAccess =
+      currentUser.locationIds.length === 0 || currentUser.locationIds.includes(body.locationId);
+    if (!hasLocationAccess) {
+      return NextResponse.json({ error: "Tenhle účet Základna nemá přístup k vybrané pobočce." }, { status: 403 });
+    }
+
+    const todayDetails = await getDayDetailsCached(toDateKey(new Date()));
+    const assignedToday = todayDetails.some(
+      (detail) =>
+        detail.shift.locationId === body.locationId &&
+        detail.assignments.some((assignment) => assignment.userId === user.id),
+    );
+    const canClockOutHere = activeRecord?.clockInLocationId === body.locationId;
+
+    if (!assignedToday && !canClockOutHere) {
+      return NextResponse.json({ error: "Tenhle brigádník dnes na téhle pobočce není rozepsaný." }, { status: 403 });
+    }
   }
 
   const record = await baseAttendanceService.togglePunch({

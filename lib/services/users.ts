@@ -41,6 +41,7 @@ function normalizeUser(user: UserRecord): UserRecord {
     photoDataUrl: user.photoDataUrl || undefined,
     photoKey: user.photoKey || undefined,
     photoContentType: user.photoContentType || undefined,
+    pinHash: user.pinHash || undefined,
     preferredRoles: normalizeStaffRoles(user.preferredRoles as string[]),
     excludedRoles: normalizeStaffRoles((user as Partial<UserRecord>).excludedRoles as string[]),
     workPeriods: normalizeWorkPeriods((user as Partial<UserRecord>).workPeriods as string[]),

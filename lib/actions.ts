@@ -78,6 +78,10 @@ function getNumber(formData: FormData, key: string, fallback = 0): number {
   return Number.isFinite(value) ? value : fallback;
 }
 
+function normalizePinInput(value: string) {
+  return value.replace(/\D/g, "").slice(0, 4);
+}
+
 function normalizeDateTimeLocalInput(value: string) {
   if (!value) return "";
   const date = new Date(value);
@@ -344,6 +348,7 @@ export async function updateMyAccountAction(formData: FormData) {
   const name = getString(formData, "name");
   const email = getString(formData, "email").toLowerCase();
   const password = getString(formData, "password");
+  const pin = normalizePinInput(getString(formData, "pin"));
 
   if (!name) {
     redirectBackWithQuery(formData, workPaths.profile, "error", "account_name");
@@ -360,11 +365,15 @@ export async function updateMyAccountAction(formData: FormData) {
   if (password && password.length < 6) {
     redirectBackWithQuery(formData, workPaths.profile, "error", "account_password");
   }
+  if (pin && pin.length !== 4) {
+    redirectBackWithQuery(formData, workPaths.profile, "error", "account_pin");
+  }
 
   await usersService.update(user.id, {
     name,
     email,
     ...(password ? { passwordHash: hashPassword(password) } : {}),
+    ...(pin ? { pinHash: hashPassword(pin) } : {}),
   });
 
   revalidateDataTags("users");
@@ -723,10 +732,12 @@ export async function createUserAction(formData: FormData) {
   if (!APP_ROLES.includes(role)) redirect(staffPaths.adminPeople);
   const locationIds = getStringArray(formData, "locationIds");
   const password = getString(formData, "password");
+  const pin = normalizePinInput(getString(formData, "pin"));
   await usersService.create({
     name: getString(formData, "name"),
     email: getString(formData, "email"),
     passwordHash: hashPassword(password || "heslo123"),
+    pinHash: pin.length === 4 ? hashPassword(pin) : undefined,
     role,
     active: true,
     locationIds,
@@ -798,6 +809,7 @@ export async function completeInviteAction(formData: FormData) {
   }
 
   const password = getString(formData, "password");
+  const pin = normalizePinInput(getString(formData, "pin"));
   const preferredRoles = getStringArray(formData, "preferredRoles").filter((role): role is StaffRole =>
     STAFF_ROLES.includes(role as StaffRole),
   );
@@ -814,11 +826,15 @@ export async function completeInviteAction(formData: FormData) {
   if (!password || password.length < 6) {
     redirect(`/work/join/${token}?error=password`);
   }
+  if (pin.length !== 4) {
+    redirect(`/work/join/${token}?error=pin`);
+  }
 
   const user = await usersService.create({
     name: getString(formData, "name"),
     email,
     passwordHash: hashPassword(password),
+    pinHash: hashPassword(pin),
     role: invite.role,
     active: true,
     locationIds: invite.locationIds,

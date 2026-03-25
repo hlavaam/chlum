@@ -124,6 +124,10 @@ async function WorkPeopleContent() {
             <input type="password" name="password" defaultValue="heslo123" required />
           </label>
           <label>
+            PIN
+            <input type="password" name="pin" inputMode="numeric" pattern="[0-9]{4}" placeholder="4 čísla" />
+          </label>
+          <label>
             Role
             <select name="role" defaultValue="brigadnik">
               {APP_ROLES.map((role) => (
