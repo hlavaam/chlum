@@ -12,7 +12,7 @@ export async function WorkAppFrame({ children }: { children: React.ReactNode }) 
     redirect(workPaths.base);
   }
   const pendingApprovals = isManagerRole(user.role)
-    ? (await assignmentsService.loadAll()).filter((assignment) => assignment.status === "pending").length
+    ? await assignmentsService.countPending()
     : 0;
   const nav = [
     { href: workPaths.employees, label: "Kalendář" },

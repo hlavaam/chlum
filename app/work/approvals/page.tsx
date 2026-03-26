@@ -57,16 +57,13 @@ async function WorkApprovalsContent() {
           return (
             <article key={assignment.id} className="panel stack">
               <div className="row between wrap align-start">
-                <div className="row gap-sm align-center wrap">
-                  {user.photoDataUrl ? <img className="approval-user-photo" src={user.photoDataUrl} alt={user.name} /> : null}
-                  <div>
-                    <p>
-                      <strong>{user.name}</strong> • {staffRoleLabels[assignment.staffRole]}
-                    </p>
-                    <p className="subtle">
-                      {shift.date} • {shift.startTime}–{shift.endTime} • {location?.name} • {shiftTypeLabels[shift.type]}
-                    </p>
-                  </div>
+                <div>
+                  <p>
+                    <strong>{user.name}</strong> • {staffRoleLabels[assignment.staffRole]}
+                  </p>
+                  <p className="subtle">
+                    {shift.date} • {shift.startTime}–{shift.endTime} • {location?.name} • {shiftTypeLabels[shift.type]}
+                  </p>
                 </div>
                 <div className="row gap-sm wrap">
                   <form action={updateAssignmentStatusAction}>

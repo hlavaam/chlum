@@ -1,5 +1,6 @@
 import type { BaseRecord } from "@/types/models";
 import {
+  countD1ResourceByField,
   loadD1ResourceByField,
   loadD1ResourceByFieldIn,
   loadD1ResourceByFieldRange,
@@ -84,4 +85,21 @@ export async function loadResourceByFieldRange<T extends BaseRecord>(
     const value = String((row as Record<string, unknown>)[field] ?? "");
     return value >= start && value <= end;
   });
+}
+
+export async function countResourceByField(
+  resource: string,
+  field: string,
+  value: string,
+  fallback: () => Promise<number>,
+): Promise<number> {
+  const backend = await getStorageBackend();
+  if (backend === "d1") {
+    return countD1ResourceByField(resource, field, value);
+  }
+  if (backend === "postgres") {
+    const { countPostgresResourceByField } = await import("@/lib/storage/postgres-db");
+    return countPostgresResourceByField(resource, field, value);
+  }
+  return fallback();
 }

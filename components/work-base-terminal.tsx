@@ -15,7 +15,6 @@ type UserOption = {
   id: string;
   name: string;
   role: string;
-  photoDataUrl?: string;
   activeRecord?: {
     clockInAt: string;
     locationId: string;

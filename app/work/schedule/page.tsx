@@ -51,16 +51,25 @@ async function WorkScheduleContent({ searchParams }: Props) {
   const anchor = new Date(`${date}T00:00:00`);
   const weekStart = toDateKey(startOfWeek(anchor));
   const weekEnd = toDateKey(endOfWeek(anchor));
+  const overviewStartAnchor = new Date(anchor);
+  overviewStartAnchor.setDate(overviewStartAnchor.getDate() - 30);
+  const overviewEndAnchor = new Date(anchor);
+  overviewEndAnchor.setDate(overviewEndAnchor.getDate() + 120);
+  const overviewStart = toDateKey(overviewStartAnchor);
+  const overviewEnd = toDateKey(overviewEndAnchor);
   const locationsPromise = getLocationsCached();
   const weekRosterPromise = getWeekRosterCached(weekStart, weekEnd);
   const emptyAdminData: [DayShiftView[], UserRecord[], ShiftRecord[], AssignmentRecord[]] = [[], [], [], []];
   const adminDataPromise: Promise<[DayShiftView[], UserRecord[], ShiftRecord[], AssignmentRecord[]]> = tab === "admin"
-    ? Promise.all([
-        getDayDetailsCached(date),
-        getUsersCached(),
-        shiftsService.loadAll(),
-        assignmentsService.loadAll(),
-      ])
+    ? (async () => {
+        const [dayDetails, users, shifts] = await Promise.all([
+          getDayDetailsCached(date),
+          getUsersCached(),
+          shiftsService.forDateRange(overviewStart, overviewEnd),
+        ]);
+        const assignments = await assignmentsService.forShiftIds(shifts.map((shift) => shift.id));
+        return [dayDetails, users, shifts, assignments];
+      })()
     : Promise.resolve(emptyAdminData);
   const [locations, weekRoster, [dayDetails, users, shifts, assignments]] = await Promise.all([
     locationsPromise,
@@ -465,7 +474,10 @@ async function WorkScheduleContent({ searchParams }: Props) {
           </section>
 
           <section className="panel stack">
-            <h3>Všechny dny (rychlý přehled)</h3>
+            <h3>Přehled období</h3>
+            <p className="subtle">
+              Zobrazeno od {overviewStart} do {overviewEnd}, aby správa zůstala rychlá i při větším počtu směn.
+            </p>
             <div className="table-wrap">
               <table className="admin-table">
                 <thead>

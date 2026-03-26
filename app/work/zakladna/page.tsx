@@ -230,7 +230,6 @@ export default async function WorkBasePage({ searchParams }: Props) {
       id: user.id,
       name: user.name,
       role: user.role,
-      photoDataUrl: user.photoDataUrl,
       activeRecord: activeRecordByUserId.get(user.id)
         ? {
             clockInAt: activeRecordByUserId.get(user.id)?.clockInAt ?? "",

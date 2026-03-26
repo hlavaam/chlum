@@ -38,9 +38,6 @@ function normalizeWorkDays(values: string[] | undefined): WorkDayPreference[] {
 function normalizeUser(user: UserRecord): UserRecord {
   return {
     ...user,
-    photoDataUrl: user.photoDataUrl || undefined,
-    photoKey: user.photoKey || undefined,
-    photoContentType: user.photoContentType || undefined,
     pinHash: user.pinHash || undefined,
     preferredRoles: normalizeStaffRoles(user.preferredRoles as string[]),
     excludedRoles: normalizeStaffRoles((user as Partial<UserRecord>).excludedRoles as string[]),

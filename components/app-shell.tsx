@@ -9,7 +9,6 @@ type NavItem = { href: string; label: string };
 type UserRecordLike = {
   name: string;
   role: AppRole;
-  photoDataUrl?: string;
 };
 
 function cx(...values: Array<string | false | null | undefined>) {
@@ -54,11 +53,7 @@ export function AppShell({ title: _title, subtitle, eyebrow, logoutPath, user, n
         </div>
         <div className="topbar-actions">
           <div className="user-chip">
-            {user.photoDataUrl ? (
-              <img className="user-chip-photo" src={user.photoDataUrl} alt={user.name} />
-            ) : (
-              <span className="user-chip-initials">{initials(user.name)}</span>
-            )}
+            <span className="user-chip-initials">{initials(user.name)}</span>
             <strong>{user.name}</strong>
           </div>
           <button className="icon-button logout-icon-button" type="button" onClick={handleLogout} aria-label="Odhlásit">

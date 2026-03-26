@@ -227,10 +227,7 @@ async function WorkPeopleContent() {
                 return (
                   <tr key={user.id}>
                     <td data-label="Jméno">
-                      <div className="row gap-sm align-center wrap">
-                        {user.photoDataUrl ? <img className="approval-user-photo" src={user.photoDataUrl} alt={user.name} /> : null}
-                        <span>{user.name}</span>
-                      </div>
+                      <span>{user.name}</span>
                     </td>
                     <td data-label="E-mail">{user.email}</td>
                     <td data-label="Role">{roleLabels[user.role]}</td>

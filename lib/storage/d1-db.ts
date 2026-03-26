@@ -31,6 +31,17 @@ function parsePayload<T extends BaseRecord>(value: string | T): T {
   return typeof value === "string" ? JSON.parse(value) as T : value;
 }
 
+function assertSafeJsonField(field: string) {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(field)) {
+    throw new Error(`Unsafe JSON field: ${field}`);
+  }
+}
+
+function getJsonFieldExpression(field: string) {
+  assertSafeJsonField(field);
+  return `json_extract(payload, '$.${field}')`;
+}
+
 async function requireD1Database() {
   const db = await getCloudflareD1Database();
   if (!db) {
@@ -204,8 +215,11 @@ export async function loadD1ResourceByField<T extends BaseRecord>(
   field: string,
   value: string,
 ): Promise<T[]> {
-  const rows = await listD1Resource<T>(resource);
-  return rows.filter((row) => readField(row, field) === value);
+  await seedD1ResourceIfEmpty(resource);
+  return runAll<T>(
+    `select payload from app_records where resource = ? and ${getJsonFieldExpression(field)} = ?`,
+    [resource, value],
+  );
 }
 
 export async function loadD1ResourceByFieldIn<T extends BaseRecord>(
@@ -214,9 +228,12 @@ export async function loadD1ResourceByFieldIn<T extends BaseRecord>(
   values: string[],
 ): Promise<T[]> {
   if (values.length === 0) return [];
-  const allowed = new Set(values);
-  const rows = await listD1Resource<T>(resource);
-  return rows.filter((row) => allowed.has(readField(row, field)));
+  await seedD1ResourceIfEmpty(resource);
+  const placeholders = values.map(() => "?").join(", ");
+  return runAll<T>(
+    `select payload from app_records where resource = ? and ${getJsonFieldExpression(field)} in (${placeholders})`,
+    [resource, ...values],
+  );
 }
 
 export async function loadD1ResourceByIds<T extends BaseRecord>(
@@ -224,9 +241,12 @@ export async function loadD1ResourceByIds<T extends BaseRecord>(
   ids: string[],
 ): Promise<T[]> {
   if (ids.length === 0) return [];
-  const allowed = new Set(ids);
-  const rows = await listD1Resource<T>(resource);
-  return rows.filter((row) => allowed.has(row.id));
+  await seedD1ResourceIfEmpty(resource);
+  const placeholders = ids.map(() => "?").join(", ");
+  return runAll<T>(
+    `select payload from app_records where resource = ? and id in (${placeholders})`,
+    [resource, ...ids],
+  );
 }
 
 export async function loadD1ResourceByFieldRange<T extends BaseRecord>(
@@ -235,9 +255,23 @@ export async function loadD1ResourceByFieldRange<T extends BaseRecord>(
   start: string,
   end: string,
 ): Promise<T[]> {
-  const rows = await listD1Resource<T>(resource);
-  return rows.filter((row) => {
-    const value = readField(row, field);
-    return value >= start && value <= end;
-  });
+  await seedD1ResourceIfEmpty(resource);
+  const fieldExpr = getJsonFieldExpression(field);
+  return runAll<T>(
+    `select payload from app_records where resource = ? and ${fieldExpr} >= ? and ${fieldExpr} <= ?`,
+    [resource, start, end],
+  );
+}
+
+export async function countD1ResourceByField(
+  resource: string,
+  field: string,
+  value: string,
+): Promise<number> {
+  await seedD1ResourceIfEmpty(resource);
+  const rows = await runQuery<CountRow>(
+    `select count(*) as count from app_records where resource = ? and ${getJsonFieldExpression(field)} = ?`,
+    [resource, value],
+  );
+  return Number(rows[0]?.count ?? 0);
 }

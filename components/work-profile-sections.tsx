@@ -1,4 +1,4 @@
-import { disconnectGoogleCalendarAction, updateMyAccountAction, updateMyPhotoAction, updateMyPreferencesAction } from "@/lib/actions";
+import { disconnectGoogleCalendarAction, updateMyAccountAction, updateMyPreferencesAction } from "@/lib/actions";
 import { AppLink } from "@/components/app-link";
 import { createBaseAttendanceQrDataUrl, createBaseAttendanceToken } from "@/lib/services/base-attendance-qr";
 import {
@@ -58,12 +58,6 @@ function accountErrorMessage(error?: string) {
       return "Nové heslo musí mít aspoň 6 znaků.";
     case "account_pin":
       return "PIN musí mít přesně 4 čísla.";
-    case "account_photo":
-      return "Vyber fotku, kterou chceš nahrát.";
-    case "account_photo_type":
-      return "Fotka musí být obrázek.";
-    case "account_photo_size":
-      return "Fotka je moc velká. Použij menší soubor do 1,5 MB.";
     default:
       return null;
   }
@@ -117,19 +111,6 @@ export function WorkProfileAccountSection({ user, redirectTo, feedback, activeBa
           Uložit účet
         </button>
       </form>
-
-      <div className="stack gap-sm">
-        <p className="eyebrow">Fotka</p>
-        {user.photoDataUrl ? <img className="profile-photo-preview" src={user.photoDataUrl} alt={user.name} /> : null}
-        {feedback?.saved === "photo" ? <p className="badge success">Fotku jsme uložili.</p> : null}
-        <form action={updateMyPhotoAction} className="row gap-sm wrap" encType="multipart/form-data">
-          <input type="hidden" name="redirectTo" value={redirectTo} />
-          <input type="file" name="photo" accept="image/*" required />
-          <button type="submit" className="button ghost">
-            Nahrát fotku
-          </button>
-        </form>
-      </div>
 
       <div className="row gap-sm wrap">
         <AppLink className="button ghost" href="#preference-brigad">

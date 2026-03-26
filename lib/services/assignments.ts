@@ -1,5 +1,5 @@
 import { BaseCrudService } from "@/lib/services/base-crud";
-import { loadResourceByField, loadResourceByFieldIn } from "@/lib/storage/resource-queries";
+import { countResourceByField, loadResourceByField, loadResourceByFieldIn } from "@/lib/storage/resource-queries";
 import { assignmentsRepository } from "@/lib/storage/repositories";
 import type { AssignmentRecord, AssignmentStatus } from "@/types/models";
 
@@ -29,6 +29,19 @@ class AssignmentsService extends BaseCrudService<AssignmentRecord> {
       userId,
       () => this.loadAll(),
     );
+  }
+
+  async countByStatus(status: AssignmentStatus) {
+    return countResourceByField(
+      "assignments",
+      "status",
+      status,
+      async () => (await this.loadAll()).filter((item) => item.status === status).length,
+    );
+  }
+
+  async countPending() {
+    return this.countByStatus("pending");
   }
 
   async setStatus(id: string, status: AssignmentStatus) {

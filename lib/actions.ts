@@ -35,7 +35,6 @@ import { upsertShiftForDate } from "@/lib/services/shift-upserts";
 import { shiftPresetsService } from "@/lib/services/shift-presets";
 import { shiftsService } from "@/lib/services/shifts";
 import { usersService } from "@/lib/services/users";
-import { uploadUserPhoto } from "@/lib/services/user-photos";
 import type {
   AppRole,
   AvailabilityStatus,
@@ -381,50 +380,6 @@ export async function updateMyAccountAction(formData: FormData) {
   revalidatePath(staffPaths.employeesMy);
   revalidatePath(staffPaths.employees);
   redirectBackWithQuery(formData, workPaths.profile, "saved", "account");
-}
-
-export async function updateMyPhotoAction(formData: FormData) {
-  const user = await requireUser({ loginPath: workPaths.login });
-  const photo = formData.get("photo");
-
-  if (!(photo instanceof File) || photo.size === 0) {
-    return redirectBackWithQuery(formData, workPaths.profile, "error", "account_photo");
-  }
-  const uploadedPhoto = photo;
-  if (!uploadedPhoto.type.startsWith("image/")) {
-    return redirectBackWithQuery(formData, workPaths.profile, "error", "account_photo_type");
-  }
-  if (uploadedPhoto.size > 1_500_000) {
-    return redirectBackWithQuery(formData, workPaths.profile, "error", "account_photo_size");
-  }
-
-  const fileBuffer = await uploadedPhoto.arrayBuffer();
-  const uploadedToR2 = await uploadUserPhoto({
-    userId: user.id,
-    bytes: fileBuffer,
-    contentType: uploadedPhoto.type,
-  });
-
-  if (uploadedToR2) {
-    await usersService.update(user.id, {
-      photoKey: uploadedToR2.key,
-      photoContentType: uploadedToR2.contentType,
-      photoDataUrl: undefined,
-    });
-  } else {
-    const bytes = Buffer.from(fileBuffer).toString("base64");
-    const photoDataUrl = `data:${uploadedPhoto.type};base64,${bytes}`;
-    await usersService.update(user.id, {
-      photoDataUrl,
-      photoKey: undefined,
-      photoContentType: uploadedPhoto.type,
-    });
-  }
-  revalidateDataTags("users");
-  revalidatePath(workPaths.profile);
-  revalidatePath(workPaths.people);
-  revalidatePath(workPaths.approvals);
-  redirectBackWithQuery(formData, workPaths.profile, "saved", "photo");
 }
 
 export async function updateAvailabilityAction(formData: FormData) {
