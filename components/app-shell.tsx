@@ -1,7 +1,8 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AppLink } from "@/components/app-link";
+import { authFetch, clearPersistedAuth } from "@/lib/auth/client";
 import { staffPaths } from "@/lib/paths";
 import type { AppRole } from "@/types/models";
 
@@ -36,10 +37,20 @@ interface AppShellProps {
 
 export function AppShell({ title: _title, subtitle, eyebrow, logoutPath, user, nav, children }: AppShellProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
 
+  function isActiveHref(href: string) {
+    if (href.includes("?")) {
+      const query = searchParams.toString();
+      return `${pathname}${query ? `?${query}` : ""}` === href;
+    }
+    return pathname === href;
+  }
+
   async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    clearPersistedAuth();
+    await authFetch("/api/auth/logout", { method: "POST" });
     router.push(logoutPath ?? staffPaths.login);
     router.refresh();
   }
@@ -84,7 +95,7 @@ export function AppShell({ title: _title, subtitle, eyebrow, logoutPath, user, n
           <AppLink
             key={item.href}
             href={item.href}
-            className={cx("tab", pathname === item.href && "active")}
+            className={cx("tab", isActiveHref(item.href) && "active")}
           >
             <span>{item.label}</span>
             {item.badge && item.badge > 0 ? <span className="nav-badge">{item.badge}</span> : null}
@@ -99,7 +110,7 @@ export function AppShell({ title: _title, subtitle, eyebrow, logoutPath, user, n
           <AppLink
             key={`mobile-${item.href}`}
             href={item.href}
-            className={cx("mobile-nav-link", pathname === item.href && "active")}
+            className={cx("mobile-nav-link", isActiveHref(item.href) && "active")}
           >
             <span>{item.label}</span>
             {item.badge && item.badge > 0 ? <span className="nav-badge">{item.badge}</span> : null}

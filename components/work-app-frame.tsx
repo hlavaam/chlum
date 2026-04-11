@@ -22,6 +22,7 @@ export async function WorkAppFrame({ children }: { children: React.ReactNode }) 
     ...(isManagerRole(user.role)
       ? [
           { href: workPaths.schedule, label: "Směny" },
+          { href: workPaths.reservations, label: "Rezervace" },
           { href: workPaths.approvals, label: "Schválení", badge: pendingApprovals },
           { href: workPaths.events, label: "Eventy" },
         ]

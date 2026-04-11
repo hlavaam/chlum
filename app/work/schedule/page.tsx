@@ -1,7 +1,8 @@
 import { AppLink } from "@/components/app-link";
+import { BaseReservationsBoard } from "@/components/base-reservations-board";
 import { DateMultiPicker } from "@/components/date-multi-picker";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
-import { FlexibleEndTimeFields } from "@/components/flexible-end-time-fields";
+import { RoleRequirementFields } from "@/components/role-requirement-fields";
 import { WorkAppFrame } from "@/components/work-app-frame";
 import {
   createShiftAction,
@@ -14,7 +15,10 @@ import {
 import { requireRoles } from "@/lib/auth/rbac";
 import { SHIFT_TYPES, STAFF_ROLES, staffRoleLabels, shiftTypeLabels } from "@/lib/constants";
 import { workPaths } from "@/lib/paths";
+import { formatRoleRequirementTime } from "@/lib/role-requirements";
 import { assignmentsService } from "@/lib/services/assignments";
+import { filterBaseLocations } from "@/lib/services/base-locations";
+import { baseReservationsService } from "@/lib/services/base-reservations";
 import {
   getDayDetailsCached,
   getLocationsCached,
@@ -23,7 +27,7 @@ import {
 } from "@/lib/services/cached-reads";
 import type { DayShiftView } from "@/lib/services/schedule";
 import { shiftsService } from "@/lib/services/shifts";
-import { endOfWeek, formatCzDate, startOfWeek, toDateKey } from "@/lib/utils";
+import { endOfWeek, formatCzDate, getMonthGrid, parseDateKey, startOfMonth, startOfWeek, toDateKey } from "@/lib/utils";
 import type { AssignmentRecord, ShiftRecord, UserRecord } from "@/types/models";
 import { WORK_SHIFT_PRESETS } from "@/lib/work-shift-presets";
 
@@ -40,6 +44,11 @@ function getRequiredCount(shift: ShiftRecord, role: (typeof STAFF_ROLES)[number]
   return shift.requiredRoles.find((item) => item.role === role)?.count ?? 0;
 }
 
+function getRoleRequirementLabel(requirement: ShiftRecord["requiredRoles"][number]) {
+  const timeLabel = formatRoleRequirementTime(requirement);
+  return timeLabel ? `${staffRoleLabels[requirement.role]} ${timeLabel}` : staffRoleLabels[requirement.role];
+}
+
 async function WorkScheduleContent({ searchParams }: Props) {
   await requireRoles(["manager", "admin"], {
     loginPath: workPaths.login,
@@ -47,10 +56,18 @@ async function WorkScheduleContent({ searchParams }: Props) {
   });
   const params = await searchParams;
   const date = readString(params, "date") || toDateKey(new Date());
-  const tab = readString(params, "tab") === "admin" ? "admin" : "calendar";
+  const tabRaw = readString(params, "tab");
+  const tab = tabRaw === "admin" || tabRaw === "reservations" ? tabRaw : "calendar";
   const anchor = new Date(`${date}T00:00:00`);
   const weekStart = toDateKey(startOfWeek(anchor));
   const weekEnd = toDateKey(endOfWeek(anchor));
+  const reservationMonthDays = getMonthGrid(parseDateKey(date));
+  const reservationMonthStart = reservationMonthDays[0];
+  const reservationMonthEnd = reservationMonthDays[reservationMonthDays.length - 1];
+  const reservationMonthLabel = new Intl.DateTimeFormat("cs-CZ", {
+    month: "long",
+    year: "numeric",
+  }).format(startOfMonth(parseDateKey(date)));
   const overviewStartAnchor = new Date(anchor);
   overviewStartAnchor.setDate(overviewStartAnchor.getDate() - 30);
   const overviewEndAnchor = new Date(anchor);
@@ -60,6 +77,9 @@ async function WorkScheduleContent({ searchParams }: Props) {
   const locationsPromise = getLocationsCached();
   const weekRosterPromise = getWeekRosterCached(weekStart, weekEnd);
   const emptyAdminData: [DayShiftView[], UserRecord[], ShiftRecord[], AssignmentRecord[]] = [[], [], [], []];
+  const reservationsPromise = tab === "reservations"
+    ? baseReservationsService.forDateRange(reservationMonthStart, reservationMonthEnd)
+    : Promise.resolve([]);
   const adminDataPromise: Promise<[DayShiftView[], UserRecord[], ShiftRecord[], AssignmentRecord[]]> = tab === "admin"
     ? (async () => {
         const [dayDetails, users, shifts] = await Promise.all([
@@ -71,13 +91,50 @@ async function WorkScheduleContent({ searchParams }: Props) {
         return [dayDetails, users, shifts, assignments];
       })()
     : Promise.resolve(emptyAdminData);
-  const [locations, weekRoster, [dayDetails, users, shifts, assignments]] = await Promise.all([
+  const [locations, weekRoster, reservations, [dayDetails, users, shifts, assignments]] = await Promise.all([
     locationsPromise,
     weekRosterPromise,
+    reservationsPromise,
     adminDataPromise,
   ]);
   const locationMap = new Map(locations.map((l) => [l.id, l]));
+  const baseLocations = filterBaseLocations(locations);
   const pendingAssignments = assignments.filter((a) => a.status === "pending");
+  const reservationsByDate = new Map<string, typeof reservations>();
+  for (const reservation of reservations) {
+    const list = reservationsByDate.get(reservation.date) ?? [];
+    list.push(reservation);
+    reservationsByDate.set(reservation.date, list);
+  }
+  for (const list of reservationsByDate.values()) {
+    list.sort((a, b) => a.time.localeCompare(b.time));
+  }
+  const reservationDays = reservationMonthDays.map((day) => {
+    const currentDate = parseDateKey(day);
+    return {
+      date: day,
+      dayNumber: currentDate.getDate(),
+      inCurrentMonth: currentDate.getMonth() === anchor.getMonth() && currentDate.getFullYear() === anchor.getFullYear(),
+      isToday: day === toDateKey(new Date()),
+      reservations: (reservationsByDate.get(day) ?? []).map((reservation) => ({
+        id: reservation.id,
+        time: reservation.time,
+        partySize: reservation.partySize,
+        name: reservation.name,
+        notes: reservation.notes,
+        locationId: reservation.locationId,
+        locationLabel: locationMap.get(reservation.locationId)?.name ?? reservation.locationId,
+      })),
+    };
+  });
+  const previousReservationMonthHref = workPaths.scheduleWithParams({
+    date: toDateKey(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1)),
+    tab: "reservations",
+  });
+  const nextReservationMonthHref = workPaths.scheduleWithParams({
+    date: toDateKey(new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1)),
+    tab: "reservations",
+  });
 
   return (
     <div className="stack gap-lg">
@@ -161,6 +218,12 @@ async function WorkScheduleContent({ searchParams }: Props) {
           >
             Admin (obsazení)
           </AppLink>
+          <AppLink
+            className={`button ${tab === "reservations" ? "" : "ghost"}`}
+            href={workPaths.scheduleWithParams({ tab: "reservations", date })}
+          >
+            Rezervace
+          </AppLink>
         </div>
         {tab === "calendar" ? (
           <>
@@ -201,17 +264,7 @@ async function WorkScheduleContent({ searchParams }: Props) {
                   ))}
                 </select>
               </label>
-              <label>
-                Čas od (volitelné, hodí se pro svatbu/event)
-                <input type="time" name="startTime" />
-              </label>
-              <FlexibleEndTimeFields timeLabel="Čas do (volitelné)" />
-              {STAFF_ROLES.map((role) => (
-                <label key={`create-role-${role}`}>
-                  {staffRoleLabels[role]} potřebujeme
-                  <input type="number" min={0} name={`${role}Count`} defaultValue={0} />
-                </label>
-              ))}
+              <RoleRequirementFields defaultStartTime="10:00" defaultEndTime="22:00" />
               <details className="full stack">
                 <summary className="subtle">Rozsah / opakování (volitelné)</summary>
                 <div className="grid-form">
@@ -277,6 +330,25 @@ async function WorkScheduleContent({ searchParams }: Props) {
             </form>
           </>
         ) : null}
+        {tab === "reservations" ? (
+          <div className="stack gap-sm">
+            <p className="subtle">
+              Přehled a zakládání rezervací pro základnu. Stejné rezervace se ukazují i v detailu dne v kalendáři.
+            </p>
+            {baseLocations.length === 0 ? (
+              <p className="alert">Nejsou dostupné žádné pobočky pro rezervace.</p>
+            ) : (
+              <BaseReservationsBoard
+                monthLabel={reservationMonthLabel}
+                previousHref={previousReservationMonthHref}
+                nextHref={nextReservationMonthHref}
+                days={reservationDays}
+                locations={baseLocations.map((location) => ({ id: location.id, name: location.name, code: location.code }))}
+                defaultLocationId={baseLocations[0]?.id ?? ""}
+              />
+            )}
+          </div>
+        ) : null}
       </section>
 
       {tab === "admin" ? (
@@ -308,7 +380,7 @@ async function WorkScheduleContent({ searchParams }: Props) {
                       <div className="chips">
                         {detail.shift.requiredRoles.map((item) => (
                           <span key={`${detail.shift.id}-${item.role}`} className="chip">
-                            {staffRoleLabels[item.role]} {item.count}x
+                            {getRoleRequirementLabel(item)} {item.count}x
                           </span>
                         ))}
                       </div>
@@ -358,16 +430,6 @@ async function WorkScheduleContent({ searchParams }: Props) {
                       <input type="date" name="date" defaultValue={detail.shift.date} required />
                     </label>
                     <label>
-                      Čas od
-                      <input type="time" name="startTime" defaultValue={detail.shift.startTime} required />
-                    </label>
-                    <FlexibleEndTimeFields
-                      timeLabel="Čas do"
-                      required
-                      defaultTime={/^\d{2}:\d{2}$/.test(detail.shift.endTime) ? detail.shift.endTime : ""}
-                      defaultFlexible={!/^\d{2}:\d{2}$/.test(detail.shift.endTime)}
-                    />
-                    <label>
                       Pobočka
                       <select name="locationId" defaultValue={detail.shift.locationId} required>
                         {locations.map((location) => (
@@ -387,17 +449,11 @@ async function WorkScheduleContent({ searchParams }: Props) {
                         ))}
                       </select>
                     </label>
-                    {STAFF_ROLES.map((role) => (
-                      <label key={`${detail.shift.id}-${role}`}>
-                        {staffRoleLabels[role]} potřebujeme
-                        <input
-                          type="number"
-                          min={0}
-                          name={`${role}Count`}
-                          defaultValue={getRequiredCount(detail.shift, role)}
-                        />
-                      </label>
-                    ))}
+                    <RoleRequirementFields
+                      requiredRoles={detail.shift.requiredRoles}
+                      defaultStartTime={detail.shift.startTime}
+                      defaultEndTime={/^\d{2}:\d{2}$/.test(detail.shift.endTime) ? detail.shift.endTime : "22:00"}
+                    />
                     <label className="full">
                       Poznámka
                       <textarea name="notes" rows={2} defaultValue={detail.shift.notes ?? ""} />
@@ -507,7 +563,7 @@ async function WorkScheduleContent({ searchParams }: Props) {
                         <td data-label="Min">{shift.minimumPeople}</td>
                         <td data-label="Role mix">
                           {shift.requiredRoles.length > 0
-                            ? shift.requiredRoles.map((item) => `${staffRoleLabels[item.role]} ${item.count}x`).join(", ")
+                            ? shift.requiredRoles.map((item) => `${getRoleRequirementLabel(item)} ${item.count}x`).join(", ")
                             : "volné"}
                         </td>
                         <td data-label="Approval">{shift.requiresApproval ? "ano" : "ne"}</td>

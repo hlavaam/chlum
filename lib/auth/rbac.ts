@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { staffPaths } from "@/lib/paths";
@@ -10,10 +11,24 @@ type AuthRedirectOptions = {
   fallbackPath?: string;
 };
 
+async function resolveLoginPath(loginPath?: string) {
+  const basePath = loginPath ?? staffPaths.login;
+  const requestHeaders = await headers();
+  const nextPath = requestHeaders.get("x-pathname");
+
+  if (!nextPath || !nextPath.startsWith("/")) {
+    return basePath;
+  }
+
+  const target = new URL(basePath, "http://localhost");
+  target.searchParams.set("next", nextPath);
+  return `${target.pathname}${target.search}`;
+}
+
 export async function requireUser(options: AuthRedirectOptions = {}): Promise<UserRecord> {
   const user = await getCurrentUser();
   if (!user) {
-    redirect(options.loginPath ?? staffPaths.login);
+    redirect(await resolveLoginPath(options.loginPath));
   }
   return user;
 }

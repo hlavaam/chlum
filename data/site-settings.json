@@ -1,0 +1,17 @@
+[
+  {
+    "id": "public-site-settings",
+    "createdAt": "2026-04-07T00:00:00.000Z",
+    "updatedAt": "2026-04-07T00:00:00.000Z",
+    "siteKey": "public",
+    "openingHours": [
+      { "key": "mon", "short": "Po", "label": "Pondělí", "open": "11:00", "close": "22:00", "closed": false },
+      { "key": "tue", "short": "Út", "label": "Úterý", "open": "11:00", "close": "22:00", "closed": false },
+      { "key": "wed", "short": "St", "label": "Středa", "open": "11:00", "close": "22:00", "closed": false },
+      { "key": "thu", "short": "Čt", "label": "Čtvrtek", "open": "11:00", "close": "22:00", "closed": false },
+      { "key": "fri", "short": "Pá", "label": "Pátek", "open": "11:00", "close": "22:00", "closed": false },
+      { "key": "sat", "short": "So", "label": "Sobota", "open": "11:00", "close": "22:00", "closed": false },
+      { "key": "sun", "short": "Ne", "label": "Neděle", "open": "11:00", "close": "22:00", "closed": false }
+    ]
+  }
+]

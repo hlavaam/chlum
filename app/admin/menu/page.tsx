@@ -1,5 +1,16 @@
-import { redirect } from "next/navigation";
+import { DailyMenuAdmin } from "@/components/daily-menu-admin";
+import { requireRoles } from "@/lib/auth/rbac";
+import { adminPaths } from "@/lib/paths";
 
 export default async function AdminMenuPage() {
-  redirect("/admin");
+  await requireRoles(["manager", "admin"], {
+    loginPath: adminPaths.login,
+    fallbackPath: adminPaths.root,
+  });
+
+  return (
+    <main className="app-shell">
+      <DailyMenuAdmin />
+    </main>
+  );
 }

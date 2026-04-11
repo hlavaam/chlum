@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
-import { loginWorkAction } from "@/lib/actions";
-import { isBaseRole, isManagerRole } from "@/lib/auth/role-access";
+import { WorkLoginForm } from "@/components/work-login-form";
+import { getDefaultPostLoginPath } from "@/lib/auth/login-target";
 import { getCurrentUser } from "@/lib/auth/session";
 import { workPaths } from "@/lib/paths";
 
@@ -16,14 +16,12 @@ function readString(value: string | string[] | undefined) {
 export default async function WorkLoginPage({ searchParams }: Props) {
   const user = await getCurrentUser();
   if (user) {
-    if (isBaseRole(user.role)) {
-      redirect(workPaths.base);
-    }
-    redirect(isManagerRole(user.role) ? workPaths.schedule : workPaths.employees);
+    redirect(getDefaultPostLoginPath(user.role));
   }
 
   const params = await searchParams;
   const error = readString(params.error);
+  const nextPath = readString(params.next);
 
   return (
     <div className="login-page">
@@ -33,21 +31,7 @@ export default async function WorkLoginPage({ searchParams }: Props) {
           <h1>Přihlášení pro brigádníky</h1>
         </div>
 
-        {error ? <p className="alert">Neplatný e-mail nebo heslo.</p> : null}
-
-        <form action={loginWorkAction} className="stack">
-          <label>
-            E-mail
-            <input type="email" name="email" required />
-          </label>
-          <label>
-            Heslo
-            <input type="password" name="password" required />
-          </label>
-          <button type="submit" className="button">
-            Vstoupit do worku
-          </button>
-        </form>
+        <WorkLoginForm initialError={Boolean(error)} nextPath={nextPath} loginPath={workPaths.login} />
       </div>
     </div>
   );

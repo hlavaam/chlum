@@ -1,168 +1,171 @@
-import { AppLink } from "@/components/app-link";
-import { PublicDailyMenu } from "@/components/public-daily-menu";
-import { isManagerRole } from "@/lib/auth/role-access";
-import { getCurrentUser } from "@/lib/auth/session";
-import { workPaths } from "@/lib/paths";
+import type { CSSProperties } from "react";
+
+import { PublicBrandLogo } from "@/components/public-brand-logo";
+import { PublicMenuSwitcher } from "@/components/public-menu-switcher";
+import { PublicOpeningHoursBubble } from "@/components/public-opening-hours-bubble";
+import { PublicReservationForm } from "@/components/public-reservation-form";
+import { PublicSiteHeader } from "@/components/public-site-header";
 import { dailyMenuService, toMenuDateKey } from "@/lib/services/daily-menu";
+import { homepageSectionsService } from "@/lib/services/homepage-sections";
+import { siteSettingsService } from "@/lib/services/site-settings";
 
 export const dynamic = "force-dynamic";
 
-const ROOM_OFFERS = [
-  { label: "2 osoby", title: "Standard", text: "Klidný pokoj se snídaní a výhledem do dvora.", price: "od 1 890 Kč / noc" },
+const SIGNATURE_DISHES = [
   {
-    label: "2-4 osoby",
-    title: "Rodinný apartmán",
-    text: "Samostatná ložnice, větší koupelna a pohodlné zázemí na delší pobyt.",
-    price: "od 2 690 Kč / noc",
+    title: "Svíčková, která se vrací na stoly pořád dokola",
+    description: "Jemná omáčka, poctivý základ a servis bez kompromisu. Nejčastější volba hostů po výletě.",
+    imageClass: "signature-a",
   },
-  { label: "2 osoby", title: "Deluxe", text: "Prostornější pokoj pro víkend ve dvou a pomalejší rána.", price: "od 2 390 Kč / noc" },
-];
+  {
+    title: "Kachní stehno pro pomalejší oběd",
+    description: "Křupavá kůže, zelí a knedlík přesně tak, jak má vypadat poctivá klasika.",
+    imageClass: "signature-b",
+  },
+  {
+    title: "Houbové rizoto s parmazánem",
+    description: "Lehčí highlight, který funguje jako plnohodnotná volba, ne jako povinný kompromis.",
+    imageClass: "signature-c",
+  },
+] as const;
 
-const EXPERIENCES = [
+const ACTIONS = [
   {
-    title: "Svatby ve dvoře",
-    text: "Kompletní servis od obřadu přes hostinu až po večerní raut. Kapacita až 80 hostů.",
+    title: "Svatby a oslavy",
+    text: "Komorní svatba, rodinná oslava nebo větší setkání v klidném prostředí Českého ráje.",
   },
   {
-    title: "Firemní setkání",
-    text: "Salonek, catering, ubytování i program v okolním Českém ráji připravíme na míru.",
+    title: "Firemní posezení",
+    text: "Obědy, večeře i neformální setkání pro menší skupiny s jednoduchou domluvou dopředu.",
   },
   {
-    title: "Rodinné oslavy",
-    text: "Nedělní oběd, narozeniny i menší setkání se zázemím, které nepůsobí jako pronajatý sál.",
+    title: "Skupiny po výletě",
+    text: "Zastávka pro turistické i cyklo skupiny s rezervací předem a přehledným menu na místě.",
   },
-];
+] as const;
+
+const GALLERY_ITEMS = [
+  { title: "Interiér", imageClass: "gallery-interior tall" },
+  { title: "Večer", imageClass: "gallery-evening wide" },
+  { title: "Detail servisu", imageClass: "gallery-detail" },
+  { title: "Hosté", imageClass: "gallery-people tall" },
+  { title: "Jídlo", imageClass: "gallery-food" },
+] as const;
+
+const REVIEWS = [
+  { name: "Lucie K.", text: "Skvělé jídlo, klidná obsluha a přesně ten typ místa, kam se chceš vrátit.", rating: "★★★★★" },
+  { name: "Martin P.", text: "Svíčková výborná, prostředí krásné a rezervace po telefonu bez komplikací.", rating: "★★★★★" },
+  { name: "Tereza a Honza", text: "Příjemná zastávka po výletě, dobrá kuchyně a žádný turistický chaos.", rating: "★★★★★" },
+  { name: "Pavel R.", text: "Místo má atmosféru, personál je v klidu a celé to působí poctivě.", rating: "★★★★★" },
+] as const;
+
+function buildAboutImageStyle(image: string): CSSProperties {
+  return {
+    backgroundImage: `linear-gradient(180deg, rgba(18, 28, 22, 0.08), rgba(18, 28, 22, 0.18)), url("${image}")`,
+  };
+}
 
 export default async function HomePage() {
-  const today = toMenuDateKey(new Date());
-  const [user, todayMenu] = await Promise.all([getCurrentUser(), dailyMenuService.getMenu(today)]);
-  const staffHref = !user
-    ? workPaths.login
-    : isManagerRole(user.role)
-      ? workPaths.schedule
-      : workPaths.employees;
-  const staffLabel = !user
-    ? "Vstup do worku"
-    : isManagerRole(user.role)
-      ? "Vstup do worku"
-      : "Pokračovat do worku";
+  const [aboutSection, siteSettings, publishedDailyMenu] = await Promise.all([
+    homepageSectionsService.getAboutSection(),
+    siteSettingsService.getPublicSettings(),
+    dailyMenuService.getPublishedMenu(),
+  ]);
+
+  const publicMenuDate = publishedDailyMenu?.date ?? toMenuDateKey(new Date());
+  const publicMenu = publishedDailyMenu?.menu ?? null;
 
   return (
     <main className="public-site">
-      <header className="public-header" id="top">
-        <div className="public-shell public-header-row">
-          <a className="public-brand" href="#top">
-            <span className="public-brand-mark">V</span>
-            <span>Restaurace Vyskeř</span>
-          </a>
-          <nav className="public-nav" aria-label="Hlavní navigace">
-            <a href="#restaurace">Restaurace</a>
-            <a href="#ubytovani">Ubytování</a>
-            <a href="#akce">Akce</a>
-            <a href="#kontakt">Kontakt</a>
-            <AppLink href={staffHref}>{staffLabel}</AppLink>
-          </nav>
-        </div>
-      </header>
+      <PublicSiteHeader />
+      <PublicOpeningHoursBubble openingHours={siteSettings.openingHours} />
 
       <section className="public-hero">
-        <div className="public-shell public-hero-grid">
-          <div className="stack gap-lg">
-            <div className="stack">
-              <p className="eyebrow">Restaurace a penzion v Českém ráji</p>
-              <h1>Poctivá kuchyně, klidné spaní a zázemí, které zvládne i rušný provoz.</h1>
-              <p className="public-lead">
-                Web restaurace, denní menu i interní systém brigádníků teď běží v jedné aplikaci. Pro hosty je to čistý
-                web Vyskeře, pro tým přehledná interní sekce na stejné doméně.
-              </p>
-            </div>
-
-            <div className="public-cta-row">
-              <a className="button" href="#kontakt">
-                Rezervovat stůl
-              </a>
-              <a className="button ghost" href="#ubytovani">
-                Poptat ubytování
-              </a>
-              <AppLink className="button ghost" href={staffHref}>
-                {staffLabel}
-              </AppLink>
-            </div>
-
-            <div className="public-stats">
-              <article>
-                <strong>28</strong>
-                <span>míst k ubytování</span>
-              </article>
-              <article>
-                <strong>7 min</strong>
-                <span>od Hruboskalska</span>
-              </article>
-              <article>
-                <strong>365 dní</strong>
-                <span>provoz restaurace a akcí</span>
-              </article>
+        <div className="public-hero-banner">
+          <div className="public-shell public-hero-overlay">
+            <div className="public-hero-copy public-hero-copy-split">
+              <h1>
+                <span>Klidná zastávka</span>
+                <span>v rušném srdci</span>
+                <span>Českého ráje</span>
+              </h1>
+              <div className="public-hero-actions">
+                <a className="button public-hero-button" href="tel:+420777123456">
+                  Rezervovat
+                </a>
+                <a className="button ghost public-hero-button" href="#menu">
+                  Menu
+                </a>
+              </div>
             </div>
           </div>
-
-          <aside className="public-hero-card">
-            <p className="eyebrow">Dnes ve Vyskři</p>
-            <h2>Hosté vidí web. Tým řídí směny v interní části.</h2>
-            <p className="public-muted">
-              Interní plánování je nově rozdělené na `/admin` a `/work`, takže veřejná prezentace restaurace a provozní systém
-              si nepřekáží.
-            </p>
-            <div className="public-chip-row">
-              <span className="chip">Restaurace</span>
-              <span className="chip">Penzion</span>
-              <span className="chip">Svatby</span>
-              <span className="chip">Brigádníci</span>
-            </div>
-          </aside>
         </div>
       </section>
 
       <section className="public-section" id="restaurace">
-        <div className="public-shell public-section-grid">
-          <div className="stack gap-md">
-            <div className="stack">
-              <p className="eyebrow">Restaurace</p>
-              <h2>Místo, kde po výletu nechcete jen rychle obědvat.</h2>
+        <div className="public-shell public-about-grid">
+          <div className="stack gap-lg public-about-copy">
+            <div className="stack public-about-head">
+              <h2 className="public-about-heading">{aboutSection.eyebrow}</h2>
+              <p className="public-about-lead">{aboutSection.title}</p>
             </div>
-            <p className="public-copy">
-              Vyskeř spojuje rodinnou restauraci, penzion a zázemí pro svatby i firemní akce. Přijeďte na oběd po
-              výšlapu, víkend ve dvou nebo vícedenní akci, kde se nemusí nic improvizovat.
-            </p>
-            <div className="public-feature-list">
-              <div className="public-card">
-                <h3>Stálý jídelní lístek</h3>
-                <p>Svíčková, poctivé polévky, ryby i lehčí sezónní jídla bez turistické šablony.</p>
-              </div>
-              <div className="public-card">
-                <h3>Nápoje a dezerty</h3>
-                <p>Výběrová káva, regionální vína, domácí limonády a dezerty, které nehraje jen vitrína.</p>
-              </div>
+            <div className="public-story-list">
+              {aboutSection.points.map((item) => (
+                <div key={item} className="public-story-point">
+                  <span />
+                  <p>{item}</p>
+                </div>
+              ))}
             </div>
           </div>
 
-          <PublicDailyMenu initialDate={today} initialMenu={todayMenu} />
+          <div className="public-about-image-wrap" aria-label="Fotografie restaurace">
+            <div className="public-image-panel public-about-image" style={buildAboutImageStyle(aboutSection.primaryImage)} />
+          </div>
         </div>
       </section>
 
-      <section className="public-section alt" id="ubytovani">
+      <section className="public-section alt" id="menu">
         <div className="public-shell stack gap-lg">
           <div className="stack">
-            <p className="eyebrow">Ubytování</p>
-            <h2>Pokoje s pohodlím po dni na stezkách.</h2>
+            <p className="eyebrow">Menu</p>
+            <h2>{publishedDailyMenu ? "Denní menu a nápoje v jednom přehledu." : "Denní menu zatím není zveřejněné."}</h2>
           </div>
-          <div className="public-card-grid three">
-            {ROOM_OFFERS.map((room) => (
-              <article key={room.title} className="public-card room-card">
-                <p className="chip">{room.label}</p>
-                <h3>{room.title}</h3>
-                <p>{room.text}</p>
-                <strong>{room.price}</strong>
+
+          <PublicMenuSwitcher publishedDate={publicMenuDate} publishedMenu={publicMenu} />
+        </div>
+      </section>
+
+      <section className="public-section" id="signature">
+        <div className="public-shell stack gap-lg">
+          <div className="stack">
+            <p className="eyebrow">Výběr kuchyně</p>
+            <h2>Jídla, která prodávají sama sebe.</h2>
+          </div>
+          <div className="public-signature-grid">
+            {SIGNATURE_DISHES.map((dish, index) => (
+              <article key={dish.title} className={`public-card public-signature-card ${index === 0 ? "featured" : ""}`.trim()}>
+                <div className={`public-signature-media ${dish.imageClass}`} />
+                <div className="stack">
+                  <span className="public-signature-badge">Nejprodávanější</span>
+                  <h3>{dish.title}</h3>
+                  <p>{dish.description}</p>
+                </div>
               </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="public-section alt" id="galerie">
+        <div className="public-shell stack gap-lg">
+          <div className="stack">
+            <p className="eyebrow">Galerie</p>
+            <h2>Jídlo, interiér i autenticita místa bez stylizace navíc.</h2>
+          </div>
+          <div className="public-gallery-grid">
+            {GALLERY_ITEMS.map((item) => (
+              <div key={item.title} className={`public-gallery-tile ${item.imageClass}`.trim()} aria-label={item.title} />
             ))}
           </div>
         </div>
@@ -171,12 +174,12 @@ export default async function HomePage() {
       <section className="public-section" id="akce">
         <div className="public-shell stack gap-lg">
           <div className="stack">
-            <p className="eyebrow">Svatby a eventy</p>
-            <h2>Od komorní oslavy po plný provoz s týmem brigádníků.</h2>
+            <p className="eyebrow">Akce</p>
+            <h2>Místo pro oslavy, firemní setkání i skupiny po výletě.</h2>
           </div>
           <div className="public-card-grid three">
-            {EXPERIENCES.map((item) => (
-              <article key={item.title} className="public-card">
+            {ACTIONS.map((item) => (
+              <article key={item.title} className="public-card stack">
                 <h3>{item.title}</h3>
                 <p>{item.text}</p>
               </article>
@@ -185,34 +188,114 @@ export default async function HomePage() {
         </div>
       </section>
 
+      <section className="public-section alt" id="rezervace">
+        <div className="public-shell public-reservation-layout">
+          <div className="stack gap-lg">
+            <div className="stack">
+              <p className="eyebrow">Rezervace</p>
+              <h2>Stůl si můžeš rezervovat během minuty.</h2>
+            </div>
+            <p className="public-copy">
+              Pro rychlou rezervaci vyplň základní údaje a odešli je e-mailem, nebo rovnou zavolej. Na víkendy a větší
+              skupiny je telefon nejlepší volba.
+            </p>
+            <PublicReservationForm email="rezervace@vyskerdvur.cz" phone="+420 777 123 456" />
+          </div>
+
+          <div className="public-card stack public-quick-contact-card">
+            <p className="eyebrow">Rychlý kontakt</p>
+            <h3>Preferuješ telefon?</h3>
+            <a className="button public-hero-button" href="tel:+420777123456">
+              Zavolat do restaurace
+            </a>
+            <p className="public-muted">+420 777 123 456</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="public-section" id="recenze">
+        <div className="public-shell stack gap-lg">
+          <div className="stack">
+            <p className="eyebrow">Recenze</p>
+            <h2>Tohle hosty přesvědčuje nejrychleji.</h2>
+          </div>
+          <div className="public-reviews-grid">
+            {REVIEWS.map((review) => (
+              <article key={review.name} className="public-card stack">
+                <p className="public-review-rating">{review.rating}</p>
+                <p>{review.text}</p>
+                <strong>{review.name}</strong>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="public-section alt" id="kontakt">
-        <div className="public-shell public-contact-grid">
-          <article className="public-card stack">
-            <p className="eyebrow">Kontakt</p>
-            <h2>Restaurace Vyskeř</h2>
-            <p>Vyskeř 24, 512 64 Vyskeř</p>
-            <p>+420 777 123 456</p>
-            <p>rezervace@vyskerdvur.cz</p>
-          </article>
-
-          <article className="public-card stack">
+        <div className="public-shell public-contact-layout">
+          <article className="public-card stack public-opening-card">
             <p className="eyebrow">Otevírací doba</p>
-            <h2>Restaurace</h2>
-            <p>Po-Čt: 11:00-22:00</p>
-            <p>Pá-So: 11:00-23:00</p>
-            <p>Ne: 11:00-21:00</p>
+            <h2>Kdy máme otevřeno</h2>
+            <div className="public-hours-list">
+              {siteSettings.openingHours.map((day) => (
+                <div key={day.key} className="public-hours-row">
+                  <span>{day.label}</span>
+                  <strong>{day.closed ? "Zavřeno" : `${day.open} - ${day.close}`}</strong>
+                </div>
+              ))}
+            </div>
+            <p className="public-hours-note">Pro rezervace na stejný den doporučujeme krátké telefonické ověření.</p>
           </article>
 
-          <article className="public-card stack">
-            <p className="eyebrow">Interní sekce</p>
-            <h2>Plánování brigádníků</h2>
-            <p>Kalendář směn, eventy, lidé a nově i správa denního menu.</p>
-            <AppLink className="button" href={staffHref}>
-              {staffLabel}
-            </AppLink>
+          <article className="public-card stack public-contact-card">
+            <p className="eyebrow">Kontakt + mapa</p>
+            <h2>Rezervace a dotazy</h2>
+            <a className="public-contact-link" href="tel:+420777123456">
+              +420 777 123 456
+            </a>
+            <a className="public-contact-link" href="mailto:rezervace@vyskerdvur.cz">
+              rezervace@vyskerdvur.cz
+            </a>
+            <p>Vyskeř 24, 512 64 Vyskeř</p>
+            <iframe
+              title="Mapa restaurace Vyskeř"
+              className="public-map-frame"
+              src="https://www.google.com/maps?q=Vyske%C5%99%2024%2C%20512%2064%20Vyske%C5%99&output=embed"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
           </article>
         </div>
       </section>
+
+      <footer className="public-footer">
+        <div className="public-shell public-footer-grid">
+          <div className="stack">
+            <a className="public-brand" href="#top">
+              <PublicBrandLogo />
+            </a>
+            <p className="public-muted">Poctivá kuchyně, klidná atmosféra a místo, kam se hosté vrací rádi.</p>
+          </div>
+
+          <div className="stack">
+            <p className="eyebrow">Navigace</p>
+            <a href="#menu">Menu</a>
+            <a href="#rezervace">Rezervace</a>
+            <a href="#galerie">Fotky</a>
+            <a href="#akce">Akce</a>
+            <a href="#kontakt">Kontakt</a>
+          </div>
+
+          <div className="stack">
+            <p className="eyebrow">Sítě</p>
+            <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">
+              Instagram
+            </a>
+            <a href="tel:+420777123456">+420 777 123 456</a>
+            <a href="mailto:rezervace@vyskerdvur.cz">rezervace@vyskerdvur.cz</a>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }

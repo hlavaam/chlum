@@ -92,7 +92,7 @@ export const dailyMenuFileStore = {
     return store.days[date] ?? null;
   },
 
-  async listDates(): Promise<Array<{ date: string; title: string; updatedAt: string | null }>> {
+  async listDates(): Promise<Array<{ date: string; title: string; updatedAt: string | null; isPublished: boolean }>> {
     const store = await readStore();
     return Object.entries(store.days)
       .sort(([left], [right]) => right.localeCompare(left))
@@ -100,11 +100,33 @@ export const dailyMenuFileStore = {
         date,
         title: menu.title || "Denní menu",
         updatedAt: menu.updatedAt || null,
+        isPublished: menu.isPublished === true,
       }));
+  },
+
+  async getPublishedMenu(): Promise<{ date: string; menu: DailyMenuDayRecord } | null> {
+    const store = await readStore();
+    const publishedEntry = Object.entries(store.days)
+      .sort(([left], [right]) => right.localeCompare(left))
+      .find(([, menu]) => menu.isPublished === true);
+
+    if (!publishedEntry) {
+      return null;
+    }
+
+    const [date, menu] = publishedEntry;
+    return { date, menu };
   },
 
   async saveMenu(date: string, menu: DailyMenuDayRecord): Promise<DailyMenuDayRecord> {
     const store = await readStore();
+    if (menu.isPublished) {
+      Object.keys(store.days).forEach((key) => {
+        if (store.days[key]) {
+          store.days[key].isPublished = false;
+        }
+      });
+    }
     store.days[date] = menu;
     await writeStore(store);
     return menu;

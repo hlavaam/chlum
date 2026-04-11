@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { AppLink } from "@/components/app-link";
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
-import { FlexibleEndTimeFields } from "@/components/flexible-end-time-fields";
+import { RoleRequirementFields } from "@/components/role-requirement-fields";
 import { ShiftAssignmentButton } from "@/components/shift-assignment-button";
 import { ShiftTypeBadge } from "@/components/ui";
 import {
@@ -15,6 +15,9 @@ import {
 import { canUseWorkRole, isManagerRole } from "@/lib/auth/role-access";
 import { SHIFT_TYPES, STAFF_ROLES, staffRoleLabels, shiftTypeLabels } from "@/lib/constants";
 import { staffPaths } from "@/lib/paths";
+import { formatRoleRequirementTime } from "@/lib/role-requirements";
+import { filterBaseLocations } from "@/lib/services/base-locations";
+import { baseReservationsService } from "@/lib/services/base-reservations";
 import { getDayDetailsCached, getEventsForDateCached, getLocationsCached } from "@/lib/services/cached-reads";
 import { formatCzDate, formatTimeRange } from "@/lib/utils";
 import type { UserRecord } from "@/types/models";
@@ -26,6 +29,8 @@ type DayDetailViewProps = {
   closeHref?: string;
   embedded?: boolean;
   selectedShiftId?: string | null;
+  reservationMessage?: string | null;
+  reservationError?: string | null;
 };
 
 function getRequiredCount(
@@ -63,15 +68,38 @@ function getDisplayRoles(
     : STAFF_ROLES.map((role) => ({ role, count: 0 }));
 }
 
-export async function DayDetailView({ date, user, redirectTo, closeHref, embedded = false, selectedShiftId = null }: DayDetailViewProps) {
+function getRoleLabel(
+  requirement: {
+    role: (typeof STAFF_ROLES)[number];
+    count: number;
+    startTime?: string;
+    endTime?: string;
+  },
+) {
+  const timeLabel = formatRoleRequirementTime(requirement);
+  return timeLabel ? `${staffRoleLabels[requirement.role]} ${timeLabel}` : staffRoleLabels[requirement.role];
+}
+
+export async function DayDetailView({
+  date,
+  user,
+  redirectTo,
+  closeHref,
+  embedded = false,
+  selectedShiftId = null,
+  reservationMessage = null,
+  reservationError = null,
+}: DayDetailViewProps) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) notFound();
 
-  const [details, locations, events] = await Promise.all([
+  const [details, locations, events, reservations] = await Promise.all([
     getDayDetailsCached(date),
     getLocationsCached(),
     getEventsForDateCached(date),
+    isManagerRole(user.role) ? baseReservationsService.forDateRange(date, date) : Promise.resolve([]),
   ]);
   const locationMap = new Map(locations.map((l) => [l.id, l]));
+  const baseLocations = filterBaseLocations(locations);
   const dayEvents = events;
   const canManageAssignments = isManagerRole(user.role);
   const canManageShifts = canManageAssignments;
@@ -134,6 +162,85 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
         </section>
       ) : null}
 
+      {isManagerRole(user.role) ? (
+        <section className="panel stack">
+          <div className="row between wrap">
+            <div>
+              <h3>Rezervace dne</h3>
+              <p className="subtle">Manager a admin tady vidi rezervace z modulu Zakladna pro stejny den.</p>
+            </div>
+            <span className={`badge ${reservations.length > 0 ? "warning" : "neutral"}`}>{reservations.length} rezervací</span>
+          </div>
+          {reservationMessage ? <p className="badge success">{reservationMessage}</p> : null}
+          {reservationError ? <p className="alert">{reservationError}</p> : null}
+          {reservations.length === 0 ? <p className="subtle">Na tenhle den zatím není žádná rezervace.</p> : null}
+          {reservations.length > 0 ? (
+            <div className="stack gap-sm">
+              {[...reservations]
+                .sort((a, b) => a.time.localeCompare(b.time))
+                .map((reservation) => (
+                  <article key={reservation.id} className="base-reservation-list-item">
+                    <div className="row between wrap gap-sm align-center">
+                      <div className="stack gap-sm">
+                        <p>
+                          <strong>{reservation.time}</strong> • {reservation.partySize} osob • {locationMap.get(reservation.locationId)?.name ?? reservation.locationId}
+                        </p>
+                        <p className="tiny subtle">
+                          {reservation.name ? reservation.name : "Bez jména"}
+                          {reservation.notes ? ` • ${reservation.notes}` : ""}
+                        </p>
+                      </div>
+                      <form action="/api/work/base/reservations/delete" method="post">
+                        <input type="hidden" name="reservationId" value={reservation.id} />
+                        <input type="hidden" name="redirectTo" value={redirectTo} />
+                        <button type="submit" className="button ghost danger small">
+                          Smazat
+                        </button>
+                      </form>
+                    </div>
+                  </article>
+                ))}
+            </div>
+          ) : null}
+          <details className="stack">
+            <summary className="button ghost summary-button">Přidat rezervaci</summary>
+            <form className="grid-form" action="/api/work/base/reservations" method="post">
+              <input type="hidden" name="redirectTo" value={redirectTo} />
+              <input type="hidden" name="date" value={date} />
+              <label>
+                Pobočka
+                <select name="locationId" defaultValue={baseLocations[0]?.id ?? ""} required>
+                  {baseLocations.map((location) => (
+                    <option key={`reservation-location-${location.id}`} value={location.id}>
+                      {location.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Čas
+                <input type="time" name="time" defaultValue="18:00" required />
+              </label>
+              <label>
+                Počet osob
+                <input type="number" name="partySize" min={1} max={40} defaultValue={2} required />
+              </label>
+              <label>
+                Jméno
+                <input type="text" name="name" placeholder="Nepovinné" />
+              </label>
+              <label className="full">
+                Poznámka
+                <textarea name="notes" rows={3} placeholder="Nepovinné" />
+              </label>
+              <button className="button" type="submit">
+                Uložit rezervaci
+              </button>
+            </form>
+          </details>
+        </section>
+      ) : null}
+
       {canManageShifts ? (
         <section className="panel stack">
           <details className="stack">
@@ -161,17 +268,7 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                   ))}
                 </select>
               </label>
-              {STAFF_ROLES.map((role) => (
-                <label key={`new-shift-${role}`}>
-                  {staffRoleLabels[role]} potřebujeme
-                  <input type="number" min={0} name={`${role}Count`} defaultValue={0} />
-                </label>
-              ))}
-              <label>
-                Čas od
-                <input type="time" name="startTime" defaultValue="10:00" />
-              </label>
-              <FlexibleEndTimeFields timeLabel="Čas do" defaultTime="22:00" />
+              <RoleRequirementFields defaultStartTime="10:00" defaultEndTime="22:00" />
               <label className="inline">
                 <input type="checkbox" name="requiresApproval" />
                 Vyžaduje schválení
@@ -236,7 +333,7 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                       <div className="chips">
                         {displayRoles.map((item) => (
                           <span key={`${shift.id}-filled-${item.role}`} className="plain-stat-chip">
-                            {staffRoleLabels[item.role]} {getAssignedCount(assignments, item.role)}/{item.count || 0}
+                            {getRoleLabel(item)} {getAssignedCount(assignments, item.role)}/{item.count || 0}
                           </span>
                         ))}
                       </div>
@@ -252,7 +349,7 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                       if (roleIsFull) {
                         return (
                           <span key={`${shift.id}-${item.role}`} className="plain-stat-chip">
-                            {staffRoleLabels[item.role]} {confirmedCount}/{item.count}
+                            {getRoleLabel(item)} {confirmedCount}/{item.count}
                           </span>
                         );
                       }
@@ -265,7 +362,7 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                           staffRole={item.role}
                           className="button role-signup-button"
                         >
-                          {staffRoleLabels[item.role]} {item.count > 0 ? `${confirmedCount}/${item.count}` : ""}
+                          {getRoleLabel(item)} {item.count > 0 ? `${confirmedCount}/${item.count}` : ""}
                         </ShiftAssignmentButton>
                       );
                     })
@@ -283,16 +380,6 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                       Datum
                       <input type="date" name="date" defaultValue={shift.date} required />
                     </label>
-                    <label>
-                      Čas od
-                      <input type="time" name="startTime" defaultValue={shift.startTime} required />
-                    </label>
-                    <FlexibleEndTimeFields
-                      timeLabel="Čas do"
-                      required
-                      defaultTime={/^\d{2}:\d{2}$/.test(shift.endTime) ? shift.endTime : ""}
-                      defaultFlexible={!/^\d{2}:\d{2}$/.test(shift.endTime)}
-                    />
                     <label>
                       Pobočka
                       <select name="locationId" defaultValue={shift.locationId} required>
@@ -313,12 +400,11 @@ export async function DayDetailView({ date, user, redirectTo, closeHref, embedde
                         ))}
                       </select>
                     </label>
-                    {STAFF_ROLES.map((role) => (
-                      <label key={`${shift.id}-${role}`}>
-                        {staffRoleLabels[role]} potřebujeme
-                        <input type="number" min={0} name={`${role}Count`} defaultValue={getRequiredCount(shift, role)} />
-                      </label>
-                    ))}
+                    <RoleRequirementFields
+                      requiredRoles={shift.requiredRoles}
+                      defaultStartTime={shift.startTime}
+                      defaultEndTime={/^\d{2}:\d{2}$/.test(shift.endTime) ? shift.endTime : "22:00"}
+                    />
                     <label className="full">
                       Poznámka
                       <textarea name="notes" rows={2} defaultValue={shift.notes ?? ""} />

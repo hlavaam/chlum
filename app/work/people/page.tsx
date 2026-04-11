@@ -16,7 +16,7 @@ import {
 import { canManageUserAccount, getAssignableRoles } from "@/lib/auth/role-access";
 import { requireRoles } from "@/lib/auth/rbac";
 import { roleLabels, staffRoleLabels, workDayPreferenceLabels, workPeriodLabels } from "@/lib/constants";
-import { workPaths } from "@/lib/paths";
+import { adminPaths, workPaths } from "@/lib/paths";
 import { baseAttendanceService } from "@/lib/services/base-attendance";
 import { getInvitesCached, getLocationsCached, getUsersCached } from "@/lib/services/cached-reads";
 import { formatMinutes, minutesBetween, nowIso } from "@/lib/utils";
@@ -209,6 +209,10 @@ async function WorkPeopleContent() {
 
       <section className="panel stack">
         <h2>Uživatelé</h2>
+        <p className="subtle">
+          Přístup do <strong>{adminPaths.root}</strong> mají jen role <strong>manager</strong> a <strong>admin</strong>. Přístup přidáš změnou role
+          přímo tady v tabulce.
+        </p>
         <div className="table-wrap">
           <table className="admin-table">
             <thead>
@@ -364,6 +368,9 @@ async function WorkPeopleContent() {
                                 Uložit roli
                               </button>
                             </form>
+                            <p className="subtle tiny">
+                              Admin přístup: {user.role === "manager" || user.role === "admin" || user.role === "superadmin" ? "ano" : "ne"}
+                            </p>
 
                             <form action={updateUserPasswordAction} className="row gap-sm wrap admin-inline-form">
                               <input type="hidden" name="userId" value={user.id} />

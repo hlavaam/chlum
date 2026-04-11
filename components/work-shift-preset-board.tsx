@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { authFetch } from "@/lib/auth/client";
+
 type DaySummaryEntry = [
   string,
   {
@@ -53,7 +55,7 @@ export function WorkShiftPresetBoard({ weekDays, locations, summaryEntries, pres
     if (!selectedLocationId || !presetKey) return;
     setMessage(null);
     startTransition(async () => {
-      const response = await fetch("/api/work/preset-shifts", {
+      const response = await authFetch("/api/work/preset-shifts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

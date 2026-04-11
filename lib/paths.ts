@@ -4,10 +4,11 @@ export const workPaths = {
   employees: "/work/employees",
   employeesMy: "/work/employees/my",
   base: "/work/zakladna",
-  baseWithParams: (params: { date?: string; range?: "week" | "month" } = {}) => {
+  baseWithParams: (params: { date?: string; range?: "week" | "month"; tab?: "attendance" | "reservations" } = {}) => {
     const search = new URLSearchParams();
     if (params.range) search.set("range", params.range);
     if (params.date) search.set("date", params.date);
+    if (params.tab) search.set("tab", params.tab);
     const query = search.toString();
     return query ? `/work/zakladna?${query}` : "/work/zakladna";
   },
@@ -19,7 +20,10 @@ export const workPaths = {
     return query ? `/work/employees/day/${date}?${query}` : `/work/employees/day/${date}`;
   },
   schedule: "/work/schedule",
-  scheduleWithParams: (params: { date?: string; tab?: "calendar" | "admin" } = {}) => {
+  reservations: "/work/reservations",
+  reservationsQuick: "/work/reservations/quick",
+  reservationsKiosk: "/work/reservations/kiosk",
+  scheduleWithParams: (params: { date?: string; tab?: "calendar" | "admin" | "reservations" } = {}) => {
     const search = new URLSearchParams();
     if (params.tab) search.set("tab", params.tab);
     if (params.date) search.set("date", params.date);
@@ -36,7 +40,7 @@ export const adminPaths = {
   root: "/admin",
   login: "/admin",
   adminSchedule: "/admin/schedule",
-  adminScheduleWithParams: (params: { date?: string; tab?: "calendar" | "admin" } = {}) => {
+  adminScheduleWithParams: (params: { date?: string; tab?: "calendar" | "admin" | "reservations" } = {}) => {
     const search = new URLSearchParams();
     if (params.tab) search.set("tab", params.tab);
     if (params.date) search.set("date", params.date);
@@ -46,6 +50,7 @@ export const adminPaths = {
   adminEvents: "/admin/events",
   adminPeople: "/admin/people",
   adminMenu: "/admin/menu",
+  adminWeb: "/admin/web",
 } as const;
 
 export const staffPaths = {
@@ -55,4 +60,5 @@ export const staffPaths = {
   adminEvents: workPaths.events,
   adminPeople: workPaths.people,
   adminMenu: adminPaths.adminMenu,
+  adminWeb: adminPaths.adminWeb,
 } as const;

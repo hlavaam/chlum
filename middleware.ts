@@ -6,7 +6,7 @@ const ACCESS_COOKIE_VALUE = "granted";
 const MAINTENANCE_PATH = "/maintenance";
 const ACCESS_API_PATH = "/api/maintenance/access";
 const WORK_PATH_PREFIX = "/work";
-const WORK_API_PREFIXES = ["/api/auth/", "/api/me", "/api/shifts/", "/api/google-calendar/", "/api/work/base/"];
+const WORK_API_PREFIXES = ["/api/auth/", "/api/me", "/api/shifts/", "/api/google-calendar/", "/api/work/base/", "/api/telegram/"];
 
 function isPublicAsset(pathname: string) {
   return pathname.startsWith("/_next/") || pathname === "/favicon.ico" || /\.[a-zA-Z0-9]+$/.test(pathname);
@@ -23,17 +23,31 @@ function isWorkApiPath(pathname: string) {
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const hasAccess = request.cookies.get(ACCESS_COOKIE)?.value === ACCESS_COOKIE_VALUE;
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-pathname", pathname === "/" ? "/" : `${pathname}${search}`);
 
   if (isPublicAsset(pathname) || pathname === ACCESS_API_PATH || isWorkPath(pathname) || isWorkApiPath(pathname)) {
-    return NextResponse.next();
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
   }
 
   if (pathname === MAINTENANCE_PATH) {
-    return NextResponse.next();
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
   }
 
   if (hasAccess) {
-    return NextResponse.next();
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
   }
 
   if (pathname.startsWith("/api/")) {

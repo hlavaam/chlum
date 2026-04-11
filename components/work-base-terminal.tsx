@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { authFetch } from "@/lib/auth/client";
+
 const QR_RESCAN_COOLDOWN_MS = 5_000;
 
 type LocationOption = {
@@ -93,20 +95,34 @@ export function WorkBaseTerminal({
   rosterByLocation,
   lockSingleLocation = false,
   compactMode = false,
+  legacyMode = false,
+  redirectTo = "/work/zakladna",
+  initialLocationId,
+  initialUserId,
+  initialPin = "",
+  initialMessage = null,
+  initialError = null,
 }: {
   locations: LocationOption[];
   users: UserOption[];
   rosterByLocation: Record<string, RosterEntry[]>;
   lockSingleLocation?: boolean;
   compactMode?: boolean;
+  legacyMode?: boolean;
+  redirectTo?: string;
+  initialLocationId?: string;
+  initialUserId?: string;
+  initialPin?: string;
+  initialMessage?: string | null;
+  initialError?: string | null;
 }) {
   const router = useRouter();
-  const [selectedLocationId, setSelectedLocationId] = useState(locations[0]?.id ?? "");
-  const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
-  const [pin, setPin] = useState("");
+  const [selectedLocationId, setSelectedLocationId] = useState(initialLocationId || locations[0]?.id || "");
+  const [selectedUserId, setSelectedUserId] = useState(initialUserId || "");
+  const [pin, setPin] = useState(initialPin);
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(initialMessage);
+  const [error, setError] = useState<string | null>(initialError);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerReady, setScannerReady] = useState(false);
   const [scannerSupported, setScannerSupported] = useState(false);
@@ -131,6 +147,16 @@ export function WorkBaseTerminal({
     [selectedUserId, selectableUsers, users],
   );
 
+  function bindTap(action: () => void) {
+    return {
+      onClick: action,
+      onTouchEnd: (event: React.TouchEvent<HTMLElement>) => {
+        event.preventDefault();
+        action();
+      },
+    };
+  }
+
   useEffect(() => {
     if (!selectedLocationId && locations[0]) {
       setSelectedLocationId(locations[0].id);
@@ -138,9 +164,34 @@ export function WorkBaseTerminal({
   }, [locations, selectedLocationId]);
 
   useEffect(() => {
+    if (!legacyMode) return;
+    setSelectedLocationId(initialLocationId || locations[0]?.id || "");
+  }, [initialLocationId, legacyMode, locations]);
+
+  useEffect(() => {
+    if (!legacyMode) return;
+    setSelectedUserId(initialUserId || "");
+  }, [initialUserId, legacyMode]);
+
+  useEffect(() => {
+    if (!legacyMode) return;
+    setPin(initialPin);
+  }, [initialPin, legacyMode]);
+
+  useEffect(() => {
+    if (!legacyMode) return;
+    setMessage(initialMessage);
+  }, [initialMessage, legacyMode]);
+
+  useEffect(() => {
+    if (!legacyMode) return;
+    setError(initialError);
+  }, [initialError, legacyMode]);
+
+  useEffect(() => {
     const nextUsers = [...selectableUsers, ...additionalUsers];
-    if (!nextUsers.some((user) => user.id === selectedUserId)) {
-      setSelectedUserId(nextUsers[0]?.id ?? users[0]?.id ?? "");
+    if (selectedUserId && !nextUsers.some((user) => user.id === selectedUserId)) {
+      setSelectedUserId("");
       setPin("");
     }
   }, [additionalUsers, selectableUsers, selectedUserId, users]);
@@ -172,7 +223,7 @@ export function WorkBaseTerminal({
     setError(null);
     setMessage(null);
     try {
-      const response = await fetch("/api/work/base/punch", {
+      const response = await authFetch("/api/work/base/punch", {
         method: "POST",
         headers: {
           "content-type": "application/json",
@@ -252,16 +303,13 @@ export function WorkBaseTerminal({
     const body = document.body;
     const previousHtmlOverflow = html.style.overflow;
     const previousBodyOverflow = body.style.overflow;
-    const previousBodyTouchAction = body.style.touchAction;
 
     html.style.overflow = "hidden";
     body.style.overflow = "hidden";
-    body.style.touchAction = "none";
 
     return () => {
       html.style.overflow = previousHtmlOverflow;
       body.style.overflow = previousBodyOverflow;
-      body.style.touchAction = previousBodyTouchAction;
     };
   }, [compactMode]);
 
@@ -340,6 +388,146 @@ export function WorkBaseTerminal({
     };
   }, [scannerOpen, selectedLocationId]);
 
+  if (legacyMode) {
+    const fallbackLocationId = initialLocationId || locations[0]?.id || "";
+    const compactRoster = rosterByLocation[fallbackLocationId] ?? [];
+    const activeCompactUser = compactRoster.find((entry) => entry.userId === selectedUserId) ?? null;
+    const activeCompactUserLabel = activeCompactUser?.name ?? selectedUser?.name ?? "";
+
+    return (
+      <section className="panel stack gap-lg">
+        {message ? <div className="base-floating-toast success">{message}</div> : null}
+        <div className="stack gap-sm">
+          <div>
+            <p className="eyebrow">Píchačka</p>
+            <h2>Základna</h2>
+          </div>
+          {error ? <p className="alert">{error}</p> : null}
+          <p className="subtle">
+            Vyber pobocku, klikni na cloveka a zadej 4 cisla. Po ctvrtém cisle se prichod nebo odchod zapise sam.
+          </p>
+        </div>
+
+        <article className="base-terminal-card stack gap-sm">
+          <form className="stack gap-sm" action={redirectTo} method="get">
+            <label>
+              Pobocka
+              <select name="locationId" defaultValue={fallbackLocationId} required>
+                {locations.map((location) => (
+                  <option key={`fallback-location-${location.id}`} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="submit" className="button ghost">
+              Zobrazit lidi
+            </button>
+          </form>
+        </article>
+
+        <section className="stack gap-sm">
+          <article className="base-terminal-card stack gap-sm">
+            <div className="row between wrap">
+              <div>
+                <p className="eyebrow">Dnesni tym</p>
+                <h3>{locations.find((location) => location.id === fallbackLocationId)?.name ?? "Pobocka"}</h3>
+              </div>
+              <span className="badge neutral">{compactRoster.length} jmen</span>
+            </div>
+            {compactRoster.length === 0 ? <p className="subtle">Na dnesek tu zatim neni nikdo rozepsany.</p> : null}
+            {compactRoster.length > 0 ? (
+              <div className="stack gap-sm">
+                {compactRoster.map((entry) => (
+                  <form key={`fallback-entry-${fallbackLocationId}-${entry.userId}`} action={redirectTo} method="get">
+                    <input type="hidden" name="locationId" value={fallbackLocationId} />
+                    <input type="hidden" name="userId" value={entry.userId} />
+                    <button type="submit" className={`base-roster-item ${selectedUserId === entry.userId ? "active" : ""}`.trim()}>
+                      <div>
+                        <p><strong>{entry.name}</strong></p>
+                        <p className="tiny subtle">
+                          {entry.clockInTime ? `Prichod ${entry.clockInTime}` : "Bez prichodu"}
+                          {entry.clockOutTime ? ` • Odchod ${entry.clockOutTime}` : ""}
+                        </p>
+                      </div>
+                      <span className={`badge ${entry.present ? "success" : entry.done ? "neutral" : entry.waiting ? "warning" : "neutral"}`}>
+                        {entry.present ? "Pritomen" : entry.done ? "Hotovo" : entry.waiting ? "Ceka" : "Mimo"}
+                      </span>
+                    </button>
+                  </form>
+                ))}
+              </div>
+            ) : null}
+          </article>
+        </section>
+
+        {selectedUserId ? (
+          <article className="base-terminal-card stack gap-sm">
+            <div className="row between wrap align-center">
+              <div>
+                <p className="eyebrow">PIN</p>
+                <h3>{activeCompactUserLabel || "Vybrany clovek"}</h3>
+              </div>
+              <form action={redirectTo} method="get">
+                <input type="hidden" name="locationId" value={fallbackLocationId} />
+                <button type="submit" className="button ghost small">Zavrit klavesnici</button>
+              </form>
+            </div>
+            <div className="base-pin-display" aria-live="polite">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <span key={`compact-pin-slot-${index}`} className={cx("base-pin-slot", index < pin.length && "filled")} />
+              ))}
+            </div>
+            <form className="stack gap-sm" action="/api/work/base/punch" method="post">
+              <input type="hidden" name="mode" value="pin" />
+              <input type="hidden" name="redirectTo" value={redirectTo} />
+              <input type="hidden" name="locationId" value={fallbackLocationId} />
+              <input type="hidden" name="userId" value={selectedUserId} />
+              <input type="hidden" name="pin" value={pin} />
+              <div className="base-keypad">
+                {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
+                  <button
+                    key={`compact-digit-${digit}`}
+                    type="submit"
+                    className="base-key"
+                    name="keypadDigit"
+                    value={digit}
+                  >
+                    {digit}
+                  </button>
+                ))}
+                <button
+                  type="submit"
+                  className="base-key ghost"
+                  name="keypadAction"
+                  value="clear"
+                >
+                  C
+                </button>
+                <button
+                  type="submit"
+                  className="base-key"
+                  name="keypadDigit"
+                  value="0"
+                >
+                  0
+                </button>
+                <button
+                  type="submit"
+                  className="base-key ghost"
+                  name="keypadAction"
+                  value="backspace"
+                >
+                  ←
+                </button>
+              </div>
+            </form>
+          </article>
+        ) : null}
+      </section>
+    );
+  }
+
   return (
     <section className="panel stack gap-lg">
       {message ? <div className="base-floating-toast success">{message}</div> : null}
@@ -356,10 +544,10 @@ export function WorkBaseTerminal({
               key={location.id}
               type="button"
               className={cx("base-location-chip", selectedLocationId === location.id && "active")}
-              onClick={() => {
+              {...bindTap(() => {
                 setSelectedLocationId(location.id);
                 setPin("");
-              }}
+              })}
               disabled={lockSingleLocation}
             >
               {location.name}
@@ -384,11 +572,11 @@ export function WorkBaseTerminal({
                 key={`${entry.userId}-${entry.name}`}
                 type="button"
                 className={cx("base-roster-item", selectedUserId === entry.userId && "active")}
-                onClick={() => {
+                {...bindTap(() => {
                   setSelectedUserId(entry.userId);
                   setPin("");
                   setError(null);
-                }}
+                })}
               >
                 <div>
                   <p><strong>{entry.name}</strong></p>
@@ -419,7 +607,7 @@ export function WorkBaseTerminal({
                 type="button"
                 className="button ghost small"
                 disabled={pending || !selectedLocationId}
-                onClick={() => setScannerOpen((value) => !value)}
+                {...bindTap(() => setScannerOpen((value) => !value))}
               >
                 {scannerOpen ? "Zavřít" : "Načíst QR"}
               </button>
@@ -438,10 +626,26 @@ export function WorkBaseTerminal({
               <p className="eyebrow">PIN</p>
               <h3>{selectedUser?.name ?? "Klikni na jméno"}</h3>
             </div>
-            <form className="stack gap-sm" onSubmit={handlePinPunch}>
+            <form className="stack gap-sm" onSubmit={handlePinPunch} action="/api/work/base/punch" method="post">
+              <input type="hidden" name="mode" value="pin" />
+              <input type="hidden" name="redirectTo" value={redirectTo} />
+              <label>
+                Pobočka
+                <select name="locationId" value={selectedLocationId} onChange={(event) => {
+                  setSelectedLocationId(event.target.value);
+                  setPin("");
+                  setError(null);
+                }}>
+                  {locations.map((location) => (
+                    <option key={`terminal-location-${location.id}`} value={location.id}>
+                      {location.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label>
                 Jméno
-                <select value={selectedUserId} onChange={(event) => {
+                <select name="userId" value={selectedUserId} onChange={(event) => {
                   setSelectedUserId(event.target.value);
                   setPin("");
                   setError(null);
@@ -466,6 +670,23 @@ export function WorkBaseTerminal({
                   ) : null}
                 </select>
               </label>
+              <label>
+                PIN
+                <input
+                  type="password"
+                  name="pin"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  autoComplete="one-time-code"
+                  placeholder="Zadej 4místný PIN"
+                  value={pin}
+                  onChange={(event) => {
+                    setPin(event.target.value.replace(/\D/g, "").slice(0, 4));
+                    setError(null);
+                  }}
+                />
+              </label>
               <div className="base-pin-display" aria-live="polite">
                 {Array.from({ length: 4 }).map((_, index) => (
                   <span key={`pin-slot-${index}`} className={cx("base-pin-slot", index < pin.length && "filled")} />
@@ -473,17 +694,17 @@ export function WorkBaseTerminal({
               </div>
               <div className="base-keypad">
                 {["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((digit) => (
-                  <button key={digit} type="button" className="base-key" onClick={() => pushDigit(digit)}>
+                  <button key={digit} type="button" className="base-key" {...bindTap(() => pushDigit(digit))}>
                     {digit}
                   </button>
                 ))}
-                <button type="button" className="base-key ghost" onClick={clearPin}>
+                <button type="button" className="base-key ghost" {...bindTap(clearPin)}>
                   C
                 </button>
-                <button type="button" className="base-key" onClick={() => pushDigit("0")}>
+                <button type="button" className="base-key" {...bindTap(() => pushDigit("0"))}>
                   0
                 </button>
-                <button type="button" className="base-key ghost" onClick={backspacePin}>
+                <button type="button" className="base-key ghost" {...bindTap(backspacePin)}>
                   ←
                 </button>
               </div>

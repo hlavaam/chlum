@@ -152,10 +152,34 @@ function defaultShiftTimes(type: ShiftType, startTimeRaw: string, endTimeRaw: st
 }
 
 function parseRoleRequirements(formData: FormData): RoleRequirement[] {
-  return STAFF_ROLES.map((role) => ({
-    role,
-    count: getNumber(formData, `${role}Count`, 0),
-  })).filter((item) => item.count > 0);
+  return STAFF_ROLES.map((role) => {
+    const count = getNumber(formData, `${role}Count`, 0);
+    const startTime = normalizeTimeInput(getString(formData, `${role}StartTime`));
+    const endTime = normalizeTimeInput(getString(formData, `${role}EndTime`));
+    const endTimeFlexible = getString(formData, `${role}EndTimeFlexible`) === "on";
+
+    return {
+      role,
+      count,
+      startTime: startTime || undefined,
+      endTime: endTimeFlexible ? undefined : endTime || undefined,
+      endTimeFlexible,
+    };
+  }).filter((item) => item.count > 0);
+}
+
+function deriveShiftTimesFromRequirements(
+  requiredRoles: RoleRequirement[],
+  fallback: { startTime: string; endTime: string },
+) {
+  const startTimes = requiredRoles.map((item) => item.startTime).filter((value): value is string => Boolean(value)).sort();
+  const endTimes = requiredRoles.map((item) => item.endTime).filter((value): value is string => Boolean(value)).sort();
+  const hasFlexibleEnd = requiredRoles.some((item) => item.endTimeFlexible);
+
+  return {
+    startTime: startTimes[0] || fallback.startTime,
+    endTime: hasFlexibleEnd ? "dle situace" : endTimes[endTimes.length - 1] || fallback.endTime,
+  };
 }
 
 function sumRoleRequirements(requiredRoles: RoleRequirement[]) {
@@ -406,29 +430,31 @@ export async function createShiftAction(formData: FormData) {
   const customDates = parseCustomDates(getString(formData, "customDates"));
   const targetDates =
     customDates.length > 0 ? customDates : enumerateDates(dateFrom, dateTo, parseWeekdaySet(formData));
-  const baseTimes = defaultShiftTimes(
-    fallbackType,
-    getString(formData, "startTime"),
-    getString(formData, "endTime"),
-  );
+  const roleRequirements = resolveRequiredRoles(formData, presetDefinition?.requiredRoles ?? []);
+  const baseTimes = presetDefinition
+    ? {
+        startTime: presetDefinition.startTime,
+        endTime: presetDefinition.endTime,
+      }
+    : defaultShiftTimes(fallbackType, "", "");
+  const derivedTimes = deriveShiftTimesFromRequirements(roleRequirements, baseTimes);
   const merged = presetDefinition
     ? {
         locationId: presetDefinition.locationId,
         type: presetDefinition.type,
-        startTime: presetDefinition.startTime,
-        endTime: presetDefinition.endTime,
+        startTime: derivedTimes.startTime || presetDefinition.startTime,
+        endTime: derivedTimes.endTime || presetDefinition.endTime,
         notes: presetDefinition.notes,
       }
     : {
         locationId: "",
         type: fallbackType,
-        startTime: baseTimes.startTime,
-        endTime: baseTimes.endTime,
+        startTime: derivedTimes.startTime,
+        endTime: derivedTimes.endTime,
         notes: getString(formData, "notes"),
       };
   const locationId = getString(formData, "locationId") || merged.locationId;
-  const endTime = isFlexibleEndTime(formData) ? "dle situace" : merged.endTime;
-  const requiredRoles = resolveRequiredRoles(formData, presetDefinition?.requiredRoles ?? []);
+  const requiredRoles = roleRequirements;
   const minimumPeople = sumRoleRequirements(requiredRoles);
   const requiresApproval = getString(formData, "requiresApproval") === "on";
 
@@ -437,7 +463,7 @@ export async function createShiftAction(formData: FormData) {
     await upsertShiftForDate({
       date,
       startTime: merged.startTime,
-      endTime,
+      endTime: merged.endTime,
       locationId,
       type: merged.type,
       requiredRoles,
@@ -571,21 +597,21 @@ export async function updateShiftAction(formData: FormData) {
   const nextDate = getString(formData, "date") || shift.date;
   const rawType = getString(formData, "type") as ShiftType;
   const nextType: ShiftType = SHIFT_TYPES.includes(rawType) ? rawType : shift.type;
-  const startTime = normalizeTimeInput(getString(formData, "startTime")) || shift.startTime;
-  const endTime = isFlexibleEndTime(formData)
-    ? "dle situace"
-    : normalizeTimeInput(getString(formData, "endTime")) || shift.endTime;
   const locationId = getString(formData, "locationId") || shift.locationId;
   const notes = getString(formData, "notes");
   const requiresApproval = getString(formData, "requiresApproval") === "on";
   const requiredRoles = resolveRequiredRoles(formData, shift.requiredRoles);
+  const derivedTimes = deriveShiftTimesFromRequirements(requiredRoles, {
+    startTime: shift.startTime,
+    endTime: shift.endTime,
+  });
   const minimumPeople = sumRoleRequirements(requiredRoles);
 
   await shiftsService.update(shiftId, {
     date: nextDate,
     type: nextType,
-    startTime,
-    endTime,
+    startTime: derivedTimes.startTime,
+    endTime: derivedTimes.endTime,
     locationId,
     requiredRoles,
     minimumPeople,

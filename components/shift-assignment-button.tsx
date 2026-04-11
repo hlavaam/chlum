@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
+import { authFetch } from "@/lib/auth/client";
 import type { StaffRole } from "@/types/models";
 
 type Props = {
@@ -25,7 +26,7 @@ export function ShiftAssignmentButton({ shiftId, action, staffRole, className, c
       onClick={() => {
         const y = window.scrollY;
         startTransition(async () => {
-          const response = await fetch(`/api/shifts/${shiftId}/${action}`, {
+          const response = await authFetch(`/api/shifts/${shiftId}/${action}`, {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify(action === "signup" && staffRole ? { staffRole } : {}),

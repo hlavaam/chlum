@@ -16,6 +16,17 @@ export default async function DayPage({ params, searchParams }: Props) {
   const { date } = await params;
   const query = await searchParams;
   const shiftId = readString(query?.shiftId) ?? null;
+  const reservationMessage = readString(query?.reservationMessage) || null;
+  const reservationError = readString(query?.reservationError) || null;
 
-  return <DayDetailView date={date} user={user} redirectTo={staffPaths.employeeDay(date, shiftId ?? undefined)} selectedShiftId={shiftId} />;
+  return (
+    <DayDetailView
+      date={date}
+      user={user}
+      redirectTo={staffPaths.employeeDay(date, shiftId ?? undefined)}
+      selectedShiftId={shiftId}
+      reservationMessage={reservationMessage}
+      reservationError={reservationError}
+    />
+  );
 }

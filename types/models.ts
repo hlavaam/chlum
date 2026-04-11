@@ -17,11 +17,19 @@ export interface DailyMenuItem {
   allergens: string;
 }
 
+export interface DailyDrinkItem {
+  name: string;
+  description: string;
+  price: string;
+}
+
 export interface DailyMenuDayRecord {
   title: string;
   note: string;
   items: DailyMenuItem[];
+  drinks?: DailyDrinkItem[];
   updatedAt: string;
+  isPublished?: boolean;
 }
 
 export interface DailyMenuRecord extends BaseRecord, DailyMenuDayRecord {
@@ -38,9 +46,35 @@ export interface BaseRecord {
   updatedAt: string;
 }
 
+export interface HomepageSectionRecord extends BaseRecord {
+  sectionKey: "about";
+  eyebrow: string;
+  title: string;
+  points: string[];
+  primaryImage: string;
+  secondaryImage: string;
+}
+
+export interface OpeningHoursDay {
+  key: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+  short: string;
+  label: string;
+  open: string;
+  close: string;
+  closed: boolean;
+}
+
+export interface SiteSettingsRecord extends BaseRecord {
+  siteKey: "public";
+  openingHours: OpeningHoursDay[];
+}
+
 export interface RoleRequirement {
   role: StaffRole;
   count: number;
+  startTime?: string;
+  endTime?: string;
+  endTimeFlexible?: boolean;
 }
 
 export interface UserRecord extends BaseRecord {
@@ -160,6 +194,43 @@ export interface BaseAttendanceRecord extends BaseRecord {
   clockOutMethod?: BaseAttendanceMethod;
 }
 
+export interface BaseReservationRecord extends BaseRecord {
+  date: string;
+  time: string;
+  partySize: number;
+  locationId: string;
+  name?: string;
+  notes?: string;
+  createdByUserId: string;
+}
+
+export type TelegramReservationStep =
+  | "delete_pick"
+  | "delete_confirm"
+  | "location"
+  | "date"
+  | "time"
+  | "party_size"
+  | "name"
+  | "notes";
+
+export type TelegramReservationMode = "create" | "delete";
+
+export interface TelegramReservationSessionRecord extends BaseRecord {
+  chatId: string;
+  userId: string;
+  mode: TelegramReservationMode;
+  step: TelegramReservationStep;
+  locationId?: string;
+  date?: string;
+  time?: string;
+  partySize?: number;
+  name?: string;
+  notes?: string;
+  reservationIds?: string[];
+  selectedReservationId?: string;
+}
+
 export type ResourceName =
   | "users"
   | "locations"
@@ -170,7 +241,11 @@ export type ResourceName =
   | "invites"
   | "calendar_connections"
   | "calendar_syncs"
-  | "base_attendance";
+  | "homepage_sections"
+  | "site_settings"
+  | "base_attendance"
+  | "base_reservations"
+  | "telegram_reservation_sessions";
 
 export type RecordByResource = {
   users: UserRecord;
@@ -182,5 +257,9 @@ export type RecordByResource = {
   invites: InviteRecord;
   calendar_connections: CalendarConnectionRecord;
   calendar_syncs: CalendarSyncRecord;
+  homepage_sections: HomepageSectionRecord;
+  site_settings: SiteSettingsRecord;
   base_attendance: BaseAttendanceRecord;
+  base_reservations: BaseReservationRecord;
+  telegram_reservation_sessions: TelegramReservationSessionRecord;
 };

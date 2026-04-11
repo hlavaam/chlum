@@ -1,14 +1,18 @@
 import type {
   AssignmentRecord,
   BaseAttendanceRecord,
+  BaseReservationRecord,
   BaseRecord,
   CalendarConnectionRecord,
   CalendarSyncRecord,
   EventRecord,
+  HomepageSectionRecord,
   InviteRecord,
   LocationRecord,
+  SiteSettingsRecord,
   ShiftPresetRecord,
   ShiftRecord,
+  TelegramReservationSessionRecord,
   UserRecord,
 } from "@/types/models";
 import type { Repository } from "@/lib/storage/repository";
@@ -145,7 +149,20 @@ export const calendarSyncsRepository = new AdaptiveRepository<CalendarSyncRecord
   "calendar_syncs",
   "calendar-syncs.json",
 );
+export const homepageSectionsRepository = new AdaptiveRepository<HomepageSectionRecord>(
+  "homepage_sections",
+  "homepage-sections.json",
+);
+export const siteSettingsRepository = new AdaptiveRepository<SiteSettingsRecord>("site_settings", "site-settings.json");
 export const baseAttendanceRepository = new AdaptiveRepository<BaseAttendanceRecord>(
   "base_attendance",
   "base-attendance.json",
+);
+export const baseReservationsRepository = new AdaptiveRepository<BaseReservationRecord>(
+  "base_reservations",
+  "base_reservations.json",
+);
+export const telegramReservationSessionsRepository = new AdaptiveRepository<TelegramReservationSessionRecord>(
+  "telegram_reservation_sessions",
+  "telegram-reservation-sessions.json",
 );

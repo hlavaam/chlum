@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ConfirmSubmitButton } from "@/components/confirm-submit-button";
+import { FlexibleEndTimeFields } from "@/components/flexible-end-time-fields";
+import { authFetch } from "@/lib/auth/client";
 import { createShiftPresetAction, deleteShiftPresetAction } from "@/lib/actions";
 import { SHIFT_TYPES, STAFF_ROLES, staffRoleLabels, shiftTypeLabels } from "@/lib/constants";
 import type { LocationRecord } from "@/types/models";
@@ -34,6 +36,8 @@ type CalendarDayCard = {
   weekdayLabel: string;
   href: string;
   className: string;
+  isToday: boolean;
+  hasReservation?: boolean;
   shifts: CalendarLocationRow[];
   emptyStateLabel: string;
 };
@@ -78,7 +82,7 @@ export function WorkCalendarBoard({
     setBusyTarget(date);
     lastDropAtRef.current = Date.now();
     try {
-      const response = await fetch("/api/work/preset-shifts", {
+      const response = await authFetch("/api/work/preset-shifts", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ date, presetId }),
@@ -159,8 +163,14 @@ export function WorkCalendarBoard({
                 }}
               >
                 <div className="day-card-header">
-                  <strong className="day-card-date">{day.dayNumber}.</strong>
-                  <span className="day-card-weekday">{day.weekdayLabel}</span>
+                  <div className="row gap-sm align-center wrap">
+                    <strong className="day-card-date">{day.dayNumber}.</strong>
+                    {day.isToday ? <span className="badge warning">Dnes</span> : null}
+                  </div>
+                  <div className="row gap-sm align-center">
+                    <span className="day-card-weekday">{day.weekdayLabel}</span>
+                    {day.hasReservation ? <span className="reservation-dot" aria-label="Den obsahuje rezervaci" title="Den obsahuje rezervaci" /> : null}
+                  </div>
                 </div>
 
                 {day.shifts.length > 0 ? (
@@ -180,12 +190,11 @@ export function WorkCalendarBoard({
                                 }
                               : undefined
                           }
-                        >
+                          >
                           <div className="day-location-main">
                             <p className="day-location-title">
                               <strong>{row.locationLabel}</strong>
                             </p>
-                            <p className="day-location-time">{row.timeLabel}</p>
                             <div className="shift-role-stats">
                               {row.roleStats.map((roleStat) => (
                                 <p key={`${row.shiftId}-${roleStat.label}`} className="day-location-type">
@@ -314,10 +323,7 @@ export function WorkCalendarBoard({
                   Od
                   <input type="time" name="startTime" defaultValue="10:00" />
                 </label>
-                <label>
-                  Do
-                  <input type="time" name="endTime" defaultValue="22:00" />
-                </label>
+                <FlexibleEndTimeFields timeLabel="Do" defaultTime="22:00" />
                 <label>
                   Pobočka
                   <select name="locationId" defaultValue={locations[0]?.id ?? ""} required>

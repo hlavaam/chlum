@@ -21,7 +21,11 @@ const RESOURCE_SEED_FILES: Record<ResourceName, string> = {
   invites: "invites.json",
   calendar_connections: "calendar-connections.json",
   calendar_syncs: "calendar-syncs.json",
+  homepage_sections: "homepage-sections.json",
+  site_settings: "site-settings.json",
   base_attendance: "base-attendance.json",
+  base_reservations: "base_reservations.json",
+  telegram_reservation_sessions: "telegram-reservation-sessions.json",
 };
 
 let schemaReadyPromise: Promise<void> | null = null;

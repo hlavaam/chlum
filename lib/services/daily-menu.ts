@@ -1,6 +1,6 @@
 import { AdaptiveRepository } from "@/lib/storage/repositories";
 import { getStorageBackend } from "@/lib/storage/storage-backend";
-import type { DailyMenuDayRecord, DailyMenuItem, DailyMenuRecord } from "@/types/models";
+import type { DailyDrinkItem, DailyMenuDayRecord, DailyMenuItem, DailyMenuRecord } from "@/types/models";
 
 const dailyMenuRepository = new AdaptiveRepository<DailyMenuRecord>("daily_menu", "daily-menu.records.json");
 
@@ -21,12 +21,30 @@ function normalizeItems(items: unknown): DailyMenuItem[] {
     .filter((item) => item.name);
 }
 
+function normalizeDrinks(items: unknown): DailyDrinkItem[] {
+  if (!Array.isArray(items)) return [];
+  return items
+    .slice(0, 30)
+    .map((item) => ({
+      name: cleanText((item as DailyDrinkItem).name, 120),
+      description: cleanText((item as DailyDrinkItem).description, 180),
+      price: cleanText((item as DailyDrinkItem).price, 50),
+    }))
+    .filter((item) => item.name);
+}
+
+function normalizePublished(value: unknown) {
+  return value === true;
+}
+
 function toDayRecord(record: DailyMenuRecord): DailyMenuDayRecord {
   return {
     title: record.title,
     note: record.note,
     items: record.items,
+    drinks: normalizeDrinks(record.drinks),
     updatedAt: record.updatedAt,
+    isPublished: normalizePublished(record.isPublished),
   };
 }
 
@@ -59,7 +77,9 @@ export function normalizeDailyMenuPayload(payload: unknown) {
   const title = cleanText(source.title, 120) || "Denní menu";
   const note = cleanText(source.note, 500);
   const items = normalizeItems(source.items);
-  return { title, note, items };
+  const drinks = normalizeDrinks(source.drinks);
+  const isPublished = normalizePublished(source.isPublished);
+  return { title, note, items, drinks, isPublished };
 }
 
 export const dailyMenuService = {
@@ -73,7 +93,7 @@ export const dailyMenuService = {
     return record ? toDayRecord(record) : null;
   },
 
-  async listDates(): Promise<Array<{ date: string; title: string; updatedAt: string | null }>> {
+  async listDates(): Promise<Array<{ date: string; title: string; updatedAt: string | null; isPublished: boolean }>> {
     const backend = await getStorageBackend();
     if (backend === "json") {
       return (await getFileStore()).listDates();
@@ -83,7 +103,33 @@ export const dailyMenuService = {
       date: menu.date,
       title: menu.title || "Denní menu",
       updatedAt: menu.updatedAt || null,
+      isPublished: normalizePublished(menu.isPublished),
     }));
+  },
+
+  async getPublishedMenu(): Promise<{ date: string; menu: DailyMenuDayRecord } | null> {
+    const backend = await getStorageBackend();
+    if (backend === "json") {
+      const published = await (await getFileStore()).getPublishedMenu();
+      if (!published) {
+        return null;
+      }
+
+      return {
+        date: published.date,
+        menu: published.menu,
+      };
+    }
+
+    const published = (await listDatabaseMenuRecords()).find((menu) => menu.isPublished);
+    if (!published) {
+      return null;
+    }
+
+    return {
+      date: published.date,
+      menu: toDayRecord(published),
+    };
   },
 
   async saveMenu(date: string, payload: unknown): Promise<DailyMenuDayRecord> {
@@ -103,6 +149,20 @@ export const dailyMenuService = {
     const backend = await getStorageBackend();
     if (backend === "json") {
       return (await getFileStore()).saveMenu(date, nextMenu);
+    }
+
+    if (nextMenu.isPublished) {
+      const rows = await listDatabaseMenuRecords();
+      await Promise.all(
+        rows
+          .filter((menu) => menu.date !== date && menu.isPublished)
+          .map((menu) =>
+            dailyMenuRepository.update(menu.id, {
+              ...menu,
+              isPublished: false,
+            }),
+          ),
+      );
     }
 
     const existing = await loadDatabaseMenuRecord(date);

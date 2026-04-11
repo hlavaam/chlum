@@ -10,6 +10,7 @@ import {
   getShiftPresetsCached,
 } from "@/lib/services/cached-reads";
 import { assignmentsService } from "@/lib/services/assignments";
+import { baseReservationsService } from "@/lib/services/base-reservations";
 import { addDays, getMonthGrid, getWeekDays, parseDateKey, startOfMonth, toDateKey } from "@/lib/utils";
 import type { ShiftType } from "@/types/models";
 
@@ -62,16 +63,19 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
   const anchorDate = readString(params, "date") || toDateKey(new Date());
   const selectedDayRaw = readString(params, "day");
   const selectedDay = selectedDayRaw && /^\d{4}-\d{2}-\d{2}$/.test(selectedDayRaw) ? selectedDayRaw : null;
+  const reservationMessage = readString(params, "reservationMessage") || null;
+  const reservationError = readString(params, "reservationError") || null;
   const presetCreated = readString(params, "presetCreated") === "1";
   const presetDeleted = readString(params, "presetDeleted") === "1";
   const anchor = parseDateKey(anchorDate);
   const days = view === "week" ? getWeekDays(anchor) : getMonthGrid(anchor);
   const startDate = days[0];
   const endDate = days[days.length - 1];
-  const [dashboardSnapshot, myAssignments, shiftPresets] = await Promise.all([
+  const [dashboardSnapshot, myAssignments, shiftPresets, reservations] = await Promise.all([
     getCurrentUserDashboardSnapshot(startDate, endDate),
     assignmentsService.forUser(user.id),
     isManagerRole(user.role) ? getShiftPresetsCached() : Promise.resolve([]),
+    baseReservationsService.forDateRange(startDate, endDate),
   ]);
   const allShiftIds = [
     ...new Set(
@@ -101,6 +105,7 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
     list.push(event);
     eventsByDate.set(event.date, list);
   }
+  const reservationDates = new Set(reservations.map((reservation) => reservation.date));
 
   const prevAnchor =
     view === "week" ? toDateKey(addDays(anchor, -7)) : toDateKey(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1));
@@ -113,6 +118,7 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
   }).format(view === "month" ? startOfMonth(anchor) : anchor);
   const canSelfAssign = canUseWorkRole(user.role);
   const canManageCalendar = isManagerRole(user.role);
+  const todayDate = toDateKey(new Date());
   const visibleLocationIds = [...new Set(
     days.flatMap((day) => (summaryMap.get(day)?.shifts ?? []).map((shift) => shift.locationId)),
   )].filter((id) => locationMap.has(id));
@@ -135,7 +141,9 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
       dayNumber: dayDate.getDate(),
       weekdayLabel: new Intl.DateTimeFormat("cs-CZ", { weekday: "short" }).format(dayDate),
       href: buildCalendarHref({ view, date: anchorDate, day }),
-      className: `day-card ${hasMyShift ? "mine" : ""} ${hasWedding ? "wedding-day" : ""} ${hasEvent ? "event-day" : ""} ${isOutsideAnchorMonth ? "outside-month" : ""}`.trim(),
+      className: `day-card ${day === todayDate ? "today" : ""} ${hasMyShift ? "mine" : ""} ${hasWedding ? "wedding-day" : ""} ${hasEvent ? "event-day" : ""} ${isOutsideAnchorMonth ? "outside-month" : ""}`.trim(),
+      isToday: day === todayDate,
+      hasReservation: reservationDates.has(day),
       shifts: (summary?.shifts ?? []).map((shift) => {
         const location = locationMap.get(shift.locationId);
         const color = locationColorById.get(shift.locationId);
@@ -242,6 +250,8 @@ export default async function EmployeesCalendarPage({ searchParams }: Props) {
               embedded
               closeHref={calendarBaseHref}
               redirectTo={buildCalendarHref({ view, date: anchorDate, day: selectedDay })}
+              reservationMessage={reservationMessage}
+              reservationError={reservationError}
             />
           </div>
         </div>

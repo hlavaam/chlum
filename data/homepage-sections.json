@@ -1,0 +1,17 @@
+[
+  {
+    "id": "homepage-about",
+    "createdAt": "2026-04-07T00:00:00.000Z",
+    "updatedAt": "2026-04-07T00:00:00.000Z",
+    "sectionKey": "about",
+    "eyebrow": "O nás",
+    "title": "Poctivá kuchyně, lokální suroviny a atmosféra, která se nesnaží být hlučná.",
+    "points": [
+      "Vaříme z lokálních surovin a stavíme na jednoduchosti, která chutná.",
+      "Menu držíme čisté, sezónní a bez zbytečné přehlídky efektů.",
+      "Vyskeř je o atmosféře, kde si host sedne, vydechne a nikam nespěchá."
+    ],
+    "primaryImage": "/hero/kaplicka.jpg",
+    "secondaryImage": "/hero/kaplicka.jpg"
+  }
+]
